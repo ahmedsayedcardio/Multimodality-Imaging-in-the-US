@@ -1,0 +1,2389 @@
+---
+title: "Multimodality Imagers in the US, 2013-2022"
+subtitle: "An Analysis of Medicare Data"
+format: 
+  html:
+    toc: true
+    toc-expand: true
+    toc-location: body
+date: 2-5-2024
+theme: lightly
+author:
+  - name: "Ahmed Sayed (asu.ahmed.sayed@gmail.com)"
+    affiliations: "Houston Methodist DeBakey Heart & Vascular Center, Houston, Texas, USA"
+    address: 6550 Fannin Street
+    city: Houston
+    state: Texas
+    postal: 77030
+embed-resources: true
+toc-title: Contents
+page-layout: full
+code-fold: true
+editor: visual
+editor_options: 
+  chunk_output_type: console
+---
+
+# Libraries
+
+```{r}
+library(dplyr)
+library(tidyverse)
+library(data.table)
+library(ggplot2)
+library(forcats)
+library(ggthemes)
+library(scales)
+library(ggpubr)
+library(readr)
+library(curl)
+library(stringr)
+library(usmap)
+library(dtplyr)
+library(facetscales)
+
+#This is a replacement string that we'll be using often to change modalities from their shortcuts to the full thing
+c(
+"pet" = "PET",
+"echo" = "Echo",
+"spect" = "SPECT",
+"cta" = "CTA",
+"mri" = "MRI"
+) -> replacement_string
+```
+
+# Preparing the data
+
+## Download zip files
+
+```{r}
+# ##UUIDS (Universally Unique Identifier) for datasets from 2013-2022
+# uuids <- c(
+#   "2013" = "ebaf67d7-1572-4419-a053-c8631cc1cc9b",
+#   "2014" = "e6aacd22-1b89-4914-855c-f8dacbd2ec60",
+#   "2015" = "0ccba18d-b821-47c6-bb55-269b78921637",
+#   "2016" = "5055d307-4fb3-4474-adbb-a11f4182ee35",
+#   "2017" = "7ebc578d-c2c7-46fd-8cc8-1b035eba7218",
+#   "2018" = "02c0692d-e2d9-4714-80c7-a1d16d72ec66",
+#   "2019" = "5fccd951-9538-48a7-9075-6f02b9867868",
+#   "2020" = "862ed658-1f38-4b2f-b02b-0b359e12c78a",
+#   "2021" = "5c67d835-3862-4f63-897d-85d3eac82d5b",
+#   "2022" = "4f307be4-6868-4a9e-ae92-acf3fd4b5543"
+#   
+# )
+# 
+# #Filters (according to HSPCS codes for each modality)
+# pet_filter <- "filter[root-group][group][conjunction]=AND&filter[group-0][group][conjunction]=OR&filter[group-0][group][memberOf]=root-group&filter[filter-0-0][condition][path]=HCPCS_Cd&filter[filter-0-0][condition][operator]=%3D&filter[filter-0-0][condition][value]=78429&filter[filter-0-0][condition][memberOf]=group-0&filter[filter-0-1][condition][path]=HCPCS_Cd&filter[filter-0-1][condition][operator]=%3D&filter[filter-0-1][condition][value]=78430&filter[filter-0-1][condition][memberOf]=group-0&filter[filter-0-2][condition][path]=HCPCS_Cd&filter[filter-0-2][condition][operator]=%3D&filter[filter-0-2][condition][value]=78431&filter[filter-0-2][condition][memberOf]=group-0&filter[filter-0-3][condition][path]=HCPCS_Cd&filter[filter-0-3][condition][operator]=%3D&filter[filter-0-3][condition][value]=78432&filter[filter-0-3][condition][memberOf]=group-0&filter[filter-0-4][condition][path]=HCPCS_Cd&filter[filter-0-4][condition][operator]=%3D&filter[filter-0-4][condition][value]=78433&filter[filter-0-4][condition][memberOf]=group-0&filter[filter-0-5][condition][path]=HCPCS_Cd&filter[filter-0-5][condition][operator]=%3D&filter[filter-0-5][condition][value]=78434&filter[filter-0-5][condition][memberOf]=group-0&filter[filter-0-6][condition][path]=HCPCS_Cd&filter[filter-0-6][condition][operator]=%3D&filter[filter-0-6][condition][value]=78459&filter[filter-0-6][condition][memberOf]=group-0&filter[filter-0-7][condition][path]=HCPCS_Cd&filter[filter-0-7][condition][operator]=%3D&filter[filter-0-7][condition][value]=78491&filter[filter-0-7][condition][memberOf]=group-0&filter[filter-0-8][condition][path]=HCPCS_Cd&filter[filter-0-8][condition][operator]=%3D&filter[filter-0-8][condition][value]=78492&filter[filter-0-8][condition][memberOf]=group-0"
+# spect_filter <- "filter[root-group][group][conjunction]=AND&filter[group-0][group][conjunction]=OR&filter[group-0][group][memberOf]=root-group&filter[filter-0-0][condition][path]=HCPCS_Cd&filter[filter-0-0][condition][operator]=%3D&filter[filter-0-0][condition][value]=78451&filter[filter-0-0][condition][memberOf]=group-0&filter[filter-0-1][condition][path]=HCPCS_Cd&filter[filter-0-1][condition][operator]=%3D&filter[filter-0-1][condition][value]=78452&filter[filter-0-1][condition][memberOf]=group-0"
+# ct_filter <- "filter[root-group][group][conjunction]=AND&filter[group-0][group][conjunction]=OR&filter[group-0][group][memberOf]=root-group&filter[filter-0-0][condition][path]=HCPCS_Cd&filter[filter-0-0][condition][operator]=%3D&filter[filter-0-0][condition][value]=75571&filter[filter-0-0][condition][memberOf]=group-0&filter[filter-0-1][condition][path]=HCPCS_Cd&filter[filter-0-1][condition][operator]=%3D&filter[filter-0-1][condition][value]=75572&filter[filter-0-1][condition][memberOf]=group-0&filter[filter-0-2][condition][path]=HCPCS_Cd&filter[filter-0-2][condition][operator]=%3D&filter[filter-0-2][condition][value]=75573&filter[filter-0-2][condition][memberOf]=group-0&filter[filter-0-3][condition][path]=HCPCS_Cd&filter[filter-0-3][condition][operator]=%3D&filter[filter-0-3][condition][value]=75574&filter[filter-0-3][condition][memberOf]=group-0"
+# echo_filter <- "filter[root-group][group][conjunction]=AND&filter[group-0][group][conjunction]=OR&filter[group-0][group][memberOf]=root-group&filter[filter-0-0][condition][path]=HCPCS_Cd&filter[filter-0-0][condition][operator]=%3D&filter[filter-0-0][condition][value]=93303&filter[filter-0-0][condition][memberOf]=group-0&filter[filter-0-1][condition][path]=HCPCS_Cd&filter[filter-0-1][condition][operator]=%3D&filter[filter-0-1][condition][value]=93304&filter[filter-0-1][condition][memberOf]=group-0&filter[filter-0-2][condition][path]=HCPCS_Cd&filter[filter-0-2][condition][operator]=%3D&filter[filter-0-2][condition][value]=93306&filter[filter-0-2][condition][memberOf]=group-0&filter[filter-0-3][condition][path]=HCPCS_Cd&filter[filter-0-3][condition][operator]=%3D&filter[filter-0-3][condition][value]=93307&filter[filter-0-3][condition][memberOf]=group-0&filter[filter-0-4][condition][path]=HCPCS_Cd&filter[filter-0-4][condition][operator]=%3D&filter[filter-0-4][condition][value]=93308&filter[filter-0-4][condition][memberOf]=group-0&filter[filter-0-5][condition][path]=HCPCS_Cd&filter[filter-0-5][condition][operator]=%3D&filter[filter-0-5][condition][value]=93312&filter[filter-0-5][condition][memberOf]=group-0&filter[filter-0-6][condition][path]=HCPCS_Cd&filter[filter-0-6][condition][operator]=%3D&filter[filter-0-6][condition][value]=93313&filter[filter-0-6][condition][memberOf]=group-0&filter[filter-0-7][condition][path]=HCPCS_Cd&filter[filter-0-7][condition][operator]=%3D&filter[filter-0-7][condition][value]=93314&filter[filter-0-7][condition][memberOf]=group-0&filter[filter-0-8][condition][path]=HCPCS_Cd&filter[filter-0-8][condition][operator]=%3D&filter[filter-0-8][condition][value]=93315&filter[filter-0-8][condition][memberOf]=group-0&filter[filter-0-9][condition][path]=HCPCS_Cd&filter[filter-0-9][condition][operator]=%3D&filter[filter-0-9][condition][value]=93316&filter[filter-0-9][condition][memberOf]=group-0&filter[filter-0-10][condition][path]=HCPCS_Cd&filter[filter-0-10][condition][operator]=%3D&filter[filter-0-10][condition][value]=93317&filter[filter-0-10][condition][memberOf]=group-0&filter[filter-0-11][condition][path]=HCPCS_Cd&filter[filter-0-11][condition][operator]=%3D&filter[filter-0-11][condition][value]=93318&filter[filter-0-11][condition][memberOf]=group-0&filter[filter-0-12][condition][path]=HCPCS_Cd&filter[filter-0-12][condition][operator]=%3D&filter[filter-0-12][condition][value]=93350&filter[filter-0-12][condition][memberOf]=group-0&filter[filter-0-13][condition][path]=HCPCS_Cd&filter[filter-0-13][condition][operator]=%3D&filter[filter-0-13][condition][value]=93351&filter[filter-0-13][condition][memberOf]=group-0&filter[filter-0-14][condition][path]=HCPCS_Cd&filter[filter-0-14][condition][operator]=%3D&filter[filter-0-14][condition][value]=93352&filter[filter-0-14][condition][memberOf]=group-0"
+# mri_filter <- "filter[root-group][group][conjunction]=AND&filter[group-0][group][conjunction]=OR&filter[group-0][group][memberOf]=root-group&filter[filter-0-0][condition][path]=HCPCS_Cd&filter[filter-0-0][condition][operator]=%3D&filter[filter-0-0][condition][value]=75557&filter[filter-0-0][condition][memberOf]=group-0&filter[filter-0-1][condition][path]=HCPCS_Cd&filter[filter-0-1][condition][operator]=%3D&filter[filter-0-1][condition][value]=75559&filter[filter-0-1][condition][memberOf]=group-0&filter[filter-0-2][condition][path]=HCPCS_Cd&filter[filter-0-2][condition][operator]=%3D&filter[filter-0-2][condition][value]=75561&filter[filter-0-2][condition][memberOf]=group-0&filter[filter-0-3][condition][path]=HCPCS_Cd&filter[filter-0-3][condition][operator]=%3D&filter[filter-0-3][condition][value]=75563&filter[filter-0-3][condition][memberOf]=group-0"
+# 
+# #Increase timeout limit
+# options(timeout = 1000)
+# 
+# #Use curl to donwload
+# library(curl)
+# 
+# #Download PET Data
+# multi_download(
+#   urls = paste0("https://data.cms.gov/data-api/v1/dataset/",
+#                 uuids,
+#                 "/data-viewer?",
+#                 pet_filter,
+#                 "&_format=csv"),
+#   destfiles = paste0("Zip/PET - ", 2013:2022, ".zip")
+# )
+# 
+# #Download SPECT Data
+# multi_download(
+#   urls = paste0("https://data.cms.gov/data-api/v1/dataset/",
+#                 uuids,
+#                 "/data-viewer?",
+#                 spect_filter,
+#                 "&_format=csv"),
+#   destfiles = paste0("Zip/SPECT - ", 2013:2022, ".zip")
+# )
+# 
+# #Download CT data
+# multi_download(
+#   urls = paste0("https://data.cms.gov/data-api/v1/dataset/",
+#                 uuids,
+#                 "/data-viewer?",
+#                 ct_filter,
+#                 "&_format=csv"),
+#   destfiles = paste0("Zip/CT - ", 2013:2022, ".zip")
+# )
+# 
+# #Download CMR data
+# multi_download(
+#   urls = paste0("https://data.cms.gov/data-api/v1/dataset/",
+#                 uuids,
+#                 "/data-viewer?",
+#                 mri_filter,
+#                 "&_format=csv"), 
+#   destfiles = paste0("Zip/CMR - ", 2013:2022, ".zip")
+# )
+# 
+# #Download Echo data
+# multi_download(
+#   urls = paste0("https://data.cms.gov/data-api/v1/dataset/",
+#                 uuids,
+#                 "/data-viewer?",
+#                 echo_filter,
+#                 "&_format=csv"),
+#   destfiles = paste0("Zip/Echo - ", 2013:2022, ".zip")
+# )
+```
+
+## Unzip them
+
+```{r}
+# #Get names of zip files
+# zip_files <- list.files(paste0(getwd(), "/Zip")) %>%
+#   str_subset(".zip")
+# 
+# #Unzip and rename them
+# for(i in 1:length(zip_files)) {
+# unzip(paste0("Zip/", zip_files[i]),
+#       exdir = paste0(getwd(), "/Data"))
+# file.rename(
+#   from = paste0("Data/", unzip(paste0("Zip/", zip_files[i]),
+#       exdir = paste0(getwd(), "/Data"),
+#       list = TRUE)$Name),
+#   to = paste0("Data/", zip_files[i] %>% str_replace(".zip", ".csv"))
+#   )
+# }
+
+```
+
+## Combine & clean the data
+
+```{r}
+#Combine the data
+data <- list.files(path = "Data/", full.names = TRUE) %>%
+  lapply(., function(filename) fread(filename) %>%
+           mutate(year = str_extract(filename, "[0-9]+"))) %>%
+  rbindlist
+
+#Clean up the data
+data <- data %>%
+  #Rename
+  rename(npi = Rndrng_NPI,
+         n_services = Tot_Srvcs,
+         provider_type = Rndrng_Prvdr_Type,
+         code = HCPCS_Cd,
+         credentials = Rndrng_Prvdr_Crdntls,
+         gender = Rndrng_Prvdr_Gndr
+         ) %>%
+  #Change formating
+  mutate(year = year %>% as.numeric,
+         code = code %>% as.factor,
+         provider_type = provider_type %>% as.factor
+         ) %>%
+  #Select relevant columns
+    select(npi, provider_type, credentials, code, n_services, year, gender)
+
+#Modality HSPCS codes
+pet_codes <- paste0(c(78429:78433, 78459, 78491, 78492))
+spect_codes <- paste0(c(78451, 78452))
+ct_codes <- paste0(c(75571:75574))
+mri_codes <- paste0(c(75557, 75559, 75561, 75563))
+echo_codes <- paste0(c(93303, 93304,
+                       93306, 93307, 93308,
+                       93312:93318,
+                       93350:93351))
+
+
+data.frame(
+  Modality = c("SPECT", "Echo", "CTA", "PET", "MRI"),
+  Codes = c(spect_codes %>% paste0(collapse = ", "),
+            echo_codes %>% paste0(collapse = ", "),
+            ct_codes %>% paste0(collapse = ", "),
+            pet_codes %>% paste0(collapse = ", "),
+            mri_codes %>% paste0(collapse = ", "))
+) -> codes_used
+
+#Create a table containing the used codes
+library(flextable)
+flextable(codes_used) %>%
+  bold(part = "header") %>%
+  bold(j = 1) %>%
+  border_inner %>%
+  border_outer %>%
+  font(fontname = "Times New Roman") %>%
+  width(width = 2.5) -> codes_used_table
+  
+
+#Whatever's not included in the above, filter it out
+data <- data %>%
+  filter(code %in% c(pet_codes, spect_codes,
+                     ct_codes, mri_codes,
+                     echo_codes))
+
+#Rename codes to meaningful things
+data <- data %>%
+  mutate(modality = case_when(
+    code %in% pet_codes ~ "PET",
+    code %in% spect_codes ~ "SPECT",
+    code %in% ct_codes ~ "CTA",
+    code %in% mri_codes ~ "MRI",
+    code %in% echo_codes ~ "Echo"
+  ) %>% factor)
+
+#Categorize relevant stuff into cardio and radio
+data <- data %>%
+  #Correct spelling mistake ("cardiatric")
+  mutate(provider_type = provider_type %>% str_replace_all("(?i)cardiatric", "cardiac")) %>%
+  mutate(cards_rads = case_when(
+    provider_type %>% str_detect("(?i)Heart|Cardio|Cardiac electro|Interventional Cardiology") ~ "Cardiology",
+    provider_type %>% str_detect("(?i)Radio|Nuclear") ~ "Radiology",
+    TRUE ~ "Other"
+  ) %>% factor
+  )
+data[cards_rads == "Other", provider_type %>% factor %>% summary %>% sort]
+```
+
+## Filter to physician procedures
+
+```{r}
+#See what credentials look like
+data[, credentials %>% factor %>% summary]
+#Remove useless confusing strings
+data[, credentials := credentials %>% str_remove_all("\\.|;|:")]
+#Create a new category
+data[, physician_ind := fcase(
+  str_detect(credentials, "(?i)md|m d|m,d|m>d>"), "Physician",
+  str_detect(credentials, "(?i)do|d o"), "Physician",
+  str_detect(credentials, "(?i)mbbs"), "Physician",
+  str_detect(credentials, "(?i)mbbch|bmbs|mb,bch|mb, bch|mb, bs|mb bs|mb,bs|mb chb|mb bao|mb, bao|mb,chb|mb bch|mb bchir|mbchb"), "Physician",
+  str_detect(credentials, "(?i)dr|physician"), "Physician"
+)]
+
+#Filter to physicians
+data <- data[physician_ind == "Physician"]
+```
+
+## Filter to cardiologists/radiologists
+
+```{r}
+#Create a separate data.table containing the n of specialties per provider
+data[,
+     .(n_specialties = uniqueN(cards_rads),
+       names_specialties = paste0(unique(cards_rads), collapse = "; "),
+       n_cards = sum(str_count(cards_rads, "Cardiology")),
+       n_rads = sum(str_count(cards_rads, "Radiology"))
+       ),
+     by = npi][n_specialties > 1] -> multi_specialty_data
+
+##Whenever a non-cardio/radio specialty is provided, see if the provider has billed for cardio/radio elsewhere
+
+#And replace with cardiology
+multi_specialty_data[
+  names_specialties %>% str_detect("Cardiology") & 
+    names_specialties %>% str_detect("Other") &
+    names_specialties %>% str_detect("Radiology", negate = TRUE),
+  new_specialty := "Cardiology"
+  ]
+
+#Or radiology
+multi_specialty_data[
+  names_specialties %>% str_detect("Radiology") & 
+    names_specialties %>% str_detect("Other") &
+    names_specialties %>% str_detect("Cardiology", negate = TRUE),
+  new_specialty := "Radiology"
+]
+
+#Get providers who have both cardio and radio
+#and assign them whichever one was used during more rows
+multi_specialty_data[is.na(new_specialty),
+                     new_specialty := ifelse(n_cards > n_rads, "Cardiology",
+                               ifelse(n_rads > n_cards, "Radiology", NA))
+                     ]
+
+#There are three remaining providers who had radio and cardio written an equal nubmer of times
+#https://npiregistry.cms.hhs.gov/ was used to look up their specialties
+multi_specialty_data[npi == 1306176706, new_specialty := "Radiology"] 
+multi_specialty_data[npi == 1699711671, new_specialty := "Radiology"] 
+multi_specialty_data[npi == 1851403836, new_specialty := "Cardiology"] 
+multi_specialty_data[npi == 1386681450, new_specialty := "Cardiology"] 
+multi_specialty_data[npi == 1265480784, new_specialty := "Cardiology"] 
+
+
+#Merge with the original datafile
+merge(x = data,
+      y = multi_specialty_data[, .(npi, new_specialty)],
+      by = "npi",
+      all.x = TRUE,
+      all.y = FALSE) -> data
+
+#Replace by new specialty if it's not missing
+data[npi %in% multi_specialty_data[, npi],
+     cards_rads := new_specialty]
+
+#Limit to cards/rads only
+data <- data[cards_rads %in% c("Cardiology", "Radiology")]
+
+#Check that none have more than 1 specialty
+data[, uniqueN(cards_rads), by = npi][, range(V1)]
+
+```
+
+## Create Data Subsets
+
+### Create MM readers dataset
+
+```{r}
+#This new dataset contains the modalities read by each reader over time
+mm_readers <- data %>%
+  lazy_dt %>%
+  group_by(year, npi) %>%
+  summarise(n_reads = sum(n_services),
+            n_modalities = uniqueN(modality),
+            modalities = paste(unique(modality), collapse = " & "),
+            cards_rads = unique(cards_rads)
+  ) %>%
+  #Add an indicator column
+  mutate(echo = str_detect(modalities, "Echo") %>% as.numeric,
+         spect = str_detect(modalities, "SPECT") %>% as.numeric,
+         pet = str_detect(modalities, "PET") %>% as.numeric,
+         cta = str_detect(modalities, "CTA") %>% as.numeric,
+         mri = str_detect(modalities, "MRI") %>% as.numeric) %>%
+  #Group by specific modalities combinations
+  mutate(
+    echo_spect = ifelse(echo + spect == 2, 1, 0),
+    echo_cta_mri = ifelse(echo + cta + mri == 3, 1, 0),
+    cta_mri = ifelse(cta + mri == 2, 1, 0),
+    pet_cta_mri = ifelse(pet + cta + mri == 3, 1, 0),
+    advanced = ifelse(echo + spect > 0 & cta + mri + pet > 0, 1, 0),
+    advanced_sens = ifelse(echo + spect + pet > 0 & cta + mri  > 0, 1, 0)
+  ) %>%
+  as.data.table
+```
+
+### Create reader-by-modality dataset
+
+```{r}
+#This new dataset contains the modalities read by each reader over time, with a separate row for each modality/reader
+readers_by_modality <- data %>%
+  lazy_dt %>%
+  group_by(year, npi, modality) %>%
+  summarise(n_reads = sum(n_services)
+  ) 
+
+#Merge with mm_readers to get indicators for advanced & N of modalities
+merge(readers_by_modality,
+      mm_readers[,.(npi, year, n_modalities, advanced)],
+      by = c("npi", "year")) -> readers_by_modality
+```
+
+### Create Physician Compare dataset
+
+```{r}
+#This new dataset links mm_readers to the PC dataset. The latter has data on year of graduation.
+#Import Physician Compare data
+pc_data <- fread("Physician Compare.csv", 
+                  nThread = 16, 
+                  select = c(
+                    "NPI",
+                    "gndr",
+                    "Grd_yr",
+                    "State",
+                    "pri_spec"
+                  )
+)
+setnames(pc_data, new = c("npi", "gender", "grad_year", "state", "specialty"))
+
+#Merge
+merge.data.table(mm_readers,
+                 unique(pc_data),
+                 by = "npi",
+                 all.x = TRUE,
+                 all.y = FALSE) -> mm_readers_pc
+```
+
+### Create Geography dataset
+
+```{r}
+#Aggregate by state
+mm_readers_pc %>%
+  filter(year == 2022) %>%
+  group_by(state) %>%
+  summarise(
+    n = uniqueN(npi),
+    n_2 = uniqueN(npi[n_modalities >= 2]),
+    n_advanced = uniqueN(npi[advanced == 1])
+    ) %>%
+  mutate(prop_advanced = 100*n_advanced/n)-> states_n
+
+#Get US pop size
+if(!exists("states_pop")) {
+states_pop <- tidycensus::get_decennial(geography = "state",
+                           year = 2020,
+                           variables = "P1_001N") %>%
+  rename(pop = value)
+}
+
+#Add full names of states
+states_n <- left_join(states_n,
+          data.frame(state = datasets::state.abb,
+                     state_full = datasets::state.name),
+          by = "state") %>%
+  data.table %>%
+  {.[state == "DC", state_full := "District of Columbia"];
+    .[state == "PR", state_full := "Puerto Rico"];
+    .[state == "VI", state_full := "Virgin Islands"]}
+
+#Add population densities and calculate sizes
+states_n <- left_join(states_n, 
+                      states_pop,
+                      by = c("state_full" = "NAME"))
+
+#Create density of all imagers
+states_n[, density := 1000000*n/pop]
+#Create density of all 2+ imagers
+states_n[, density := 1000000*n_2/pop]
+#Create density of advanced imagers
+states_n[, density_advanced := 1000000*n_advanced/pop]
+
+```
+
+### Create Gender dataset
+
+```{r}
+
+#Get NPIs that have only one gender
+one_gender_npis <- data[, .(n = uniqueN(gender)), by = npi][n == 1, npi]
+
+#Create a mm_readers by gender dataset
+merge(
+  x = mm_readers,
+  y = data[npi %in% one_gender_npis, .(gender  = unique(gender)), by = npi],
+  by = "npi"
+) -> mm_readers_gender
+
+#Change F/M to Women/Men
+mm_readers_gender[, gender := fcase(
+  gender == "F", "Women",
+  gender == "M", "Men"
+) %>% fct_relevel("Women", "Men")]
+
+#Gender dataset
+write.csv(file = "Gender Dataset.csv", x = mm_readers_gender)
+
+#Gender by geography dataset (2022 only)
+# mm_readers_pc %>%
+#   filter(year == 2022) %>%
+#   select(-year, - grad_year) %>%
+#   write.csv("Gender Geographic.csv")
+# 
+
+mm_readers_pc %>%
+  filter(year == 2022) %>%
+  select(-year, - grad_year) %>%
+  left_join(states_n %>% select(state, state_full),
+            by = "state") %>%
+  write.csv("Gender Geographic.csv")
+```
+
+# Analyze
+
+## Procedures over time
+
+### Create data
+
+```{r}
+# Services over time
+n_services <- data %>%
+  group_by(year, modality) %>%
+  summarise(n = sum(n_services))
+
+#Order them
+n_services <- n_services %>%
+  mutate(modality = modality %>% fct_relevel("Echo", "SPECT", "CTA", "PET", "MRI"),
+         n = as.integer(n)
+         ) %>%
+  mutate(prop = 100*n/sum(n)) %>%
+  data.table
+
+#Total services over time
+n_services_total <- data %>% 
+  group_by(year) %>%
+  summarise(n = sum(n_services)) %>%
+  data.table
+```
+
+### Create the total N figure
+
+```{r}
+#Create the figure
+fig_pt_total <- ggplot(data = n_services_total,
+       aes(y = n,
+           x = year)) +
+  #Geoms
+  geom_line(lwd = 2, color = "black") +
+  geom_point(size = 9, pch = 18) +
+  #Title
+  ggtitle("Trends in the total use of cardiac imaging modalities, 2013-2022") +
+  scale_y_continuous(name = "Total volume of procedures",
+                     labels = scales::comma) +
+  scale_x_continuous(name = NULL,
+                     breaks = seq(2013, 2022, 1)) +
+  #Theme
+  theme_pubclean() +
+  theme(text = element_text(size = 23),
+      plot.title=element_text(face = "bold",hjust = 0.5, size = 18),
+      plot.subtitle = element_text(face = "bold", size = 10, hjust = 0.0, color = "grey45"),
+      axis.text.x = element_text(size = 16, face = "bold"),
+      axis.text.y = element_text(size = 15, face = "bold"),
+      axis.title.x = element_text(size = 25, face = "bold"),
+      axis.title.y = element_text(size = 21, face = "bold"),
+      axis.line = element_line(colour = "black", linewidth = 1.2),
+      plot.margin = margin(0.5, 1, 0.5, 1, "cm"),
+      strip.text = element_text(face = "bold"),
+      strip.background = element_rect(fill = "grey90")
+      ) 
+
+  
+
+ggsave("Figures/Total Procedures over time.png",
+       dpi = 600,
+       width = 16,
+       height = 9)
+
+ggsave("PDF Figures/Total Procedures over time.pdf",
+       dpi = 600,
+       width = 16,
+       height = 9)
+```
+
+### Create N by modalities Figure
+
+```{r}
+#Create the figure
+fig_pt <- ggplot(data = n_services,
+       aes(y = n,
+           x = year,
+           color = modality)) +
+  #Geoms
+  geom_line(lwd = 1.5) +
+  geom_point(size = 6, pch = 18) +
+  #Title
+  ggtitle("Trends in the use of different imaging modalities, 2013-2022") +
+  #Scales
+  scale_color_stata(name = "Modality") +
+  #Theme
+  theme_pubclean() +
+  theme(text = element_text(size = 23),
+      plot.title=element_text(face = "bold",hjust = 0.5, size = 18),
+      plot.subtitle = element_text(face = "bold", size = 10, hjust = 0.0, color = "grey45"),
+      axis.text.x = element_text(size = 16, face = "bold"),
+      axis.text.y = element_text(size = 15, face = "bold"),
+      axis.title.x = element_text(size = 25, face = "bold"),
+      axis.title.y = element_text(size = 21, face = "bold"),
+      axis.line = element_line(colour = "black", linewidth = 1.2),
+      plot.margin = margin(0.5, 1, 0.5, 1, "cm"),
+      strip.text = element_text(face = "bold"),
+      strip.background = element_rect(fill = "grey90"),
+      legend.position = "bottom",
+      legend.title = element_blank(),
+      legend.text = element_text(size = 16, face = "bold"),
+      legend.key.width = unit(4, "cm"),
+      legend.key.height = unit(0.75, "cm"),
+      legend.background = element_rect(fill = "transparent"),
+      legend.key = element_rect(fill = "transparent"),
+      panel.spacing = unit(1, "lines")
+      ) 
+
+library(ggbreak)
+fig_pt <- fig_pt +
+  scale_y_break(c(210000, 1200000), 
+                scale = 1, space = 1) + 
+  scale_y_break(c(2200000, 6200000), 
+                scale = 1, space = 1) +
+  ylab("Number of procedures") +
+  xlab(NULL) +
+  scale_y_continuous(labels = label_comma()) +
+  scale_x_continuous(breaks = seq(2000, 2050, 1)) +
+  theme(axis.line.y.right = element_blank(),
+                                        axis.text.y.right = element_blank(),
+                                        axis.ticks.y.right = element_blank())
+  
+
+ggsave("Figures/Procedures over time.png",
+       dpi = 600,
+       width = 16,
+       height = 9)
+
+ggsave("PDF Figures/Procedures over time.pdf",
+       dpi = 600,
+       width = 16,
+       height = 9)
+```
+
+### Create Prop Figure
+
+```{r}
+
+#Create the figure
+fig_pt_prop <- ggplot(data = n_services,
+       aes(y = prop,
+           x = year,
+           color = modality)) +
+  #Geoms
+  geom_line(lwd = 1.5) +
+  geom_point(size = 6, pch = 18) +
+  #Title
+  ggtitle("Trends in the use of different imaging modalities, 2013-2022") +
+  #Scales
+  scale_color_stata(name = "Modality") +
+  #Theme
+  theme_pubclean() +
+  theme(text = element_text(size = 23),
+      plot.title=element_text(face = "bold",hjust = 0.5, size = 18),
+      plot.subtitle = element_text(face = "bold", size = 10, hjust = 0.0, color = "grey45"),
+      axis.text.x = element_text(size = 16, face = "bold"),
+      axis.text.y = element_text(size = 15, face = "bold"),
+      axis.title.x = element_text(size = 25, face = "bold"),
+      axis.title.y = element_text(size = 21, face = "bold"),
+      axis.line = element_line(colour = "black", linewidth = 1.2),
+      plot.margin = margin(0.5, 1, 0.5, 1, "cm"),
+      strip.text = element_text(face = "bold"),
+      strip.background = element_rect(fill = "grey90"),
+      legend.position = "none",
+      legend.title = element_blank(),
+      legend.text = element_text(size = 16, face = "bold"),
+      legend.key.width = unit(4, "cm"),
+      legend.key.height = unit(0.75, "cm"),
+      legend.background = element_rect(fill = "transparent"),
+      legend.key = element_rect(fill = "transparent"),
+      panel.spacing = unit(1, "lines")
+      ) 
+
+
+fig_pt_prop <- fig_pt_prop +
+  scale_y_break(c(3, 14), 
+                scale = 1, space = 1) + 
+    scale_y_break(c(24, 74), 
+                scale = 1, space = 1) + 
+  scale_y_continuous(breaks = c(
+    seq(0, 5, 1),
+    seq(14, 100, 2)
+    )) +
+  scale_x_continuous(breaks = seq(2000, 2050, 1)) +
+  ylab("Proportion of procedures (%)") +
+  xlab(NULL) +
+  theme(axis.line.y.right = element_blank(),
+                                        axis.text.y.right = element_blank(),
+                                        axis.ticks.y.right = element_blank())
+
+ggsave("Figures/Procedures Proportion over time.png",
+       dpi = 600,
+       width = 16,
+       height = 9)
+
+ggsave("PDF Figures/Procedures Proportion over time.pdf",
+       dpi = 600,
+       width = 16,
+       height = 9)
+```
+
+## Readers over time
+
+### Create Data
+
+```{r}
+#Reads over time
+n_reads <- data %>%
+  group_by(year, modality, npi) %>%
+  summarise(n_reads = sum(n_services)) %>% #Get reads per NPI
+  group_by(year, modality) %>%
+  summarise(median = median(n_reads),
+            q25 = quantile(n_reads, 0.25),
+            q75 = quantile(n_reads, 0.75),
+            n_readers = uniqueN(npi),
+            prop_25less = uniqueN(npi[n_reads <= 25])/uniqueN(npi)
+  ) %>%
+  mutate(prop = 100*n_readers/sum(n_readers))
+
+#Change ordering of modalities for display purposes
+n_reads <- n_reads %>%
+  mutate(modality = modality %>% fct_relevel("Echo", "SPECT", "CTA", "PET", "MRI")
+         )
+```
+
+### Create N Figure
+
+```{r}
+
+#Create the figure
+fig_rt <- ggplot(data = n_reads,
+       aes(y = n_readers,
+           x = year,
+           color = modality)) +
+  #Geoms
+  geom_line(lwd = 1.5) +
+  geom_point(size = 6, pch = 18) +
+  #Title
+  ggtitle("Trends in the number of cardiac imagers across different modalities, 2013-2022") +
+  #Scales
+  scale_color_stata(name = "Modality") +
+  #Theme
+  theme_pubclean() +
+  theme(text = element_text(size = 23),
+      plot.title=element_text(face = "bold",hjust = 0.5, size = 18),
+      plot.subtitle = element_text(face = "bold", size = 10, hjust = 0.0, color = "grey45"),
+      axis.text.x = element_text(size = 16, face = "bold"),
+      axis.text.y = element_text(size = 15, face = "bold"),
+      axis.title.x = element_text(size = 25, face = "bold"),
+      axis.title.y = element_text(size = 21, face = "bold"),
+      axis.line = element_line(colour = "black", linewidth = 1.2),
+      plot.margin = margin(0.5, 1, 0.5, 1, "cm"),
+      strip.text = element_text(face = "bold"),
+      strip.background = element_rect(fill = "grey90"),
+      legend.position = "bottom",
+      legend.title = element_blank(),
+      legend.text = element_text(size = 16, face = "bold"),
+      legend.key.width = unit(4, "cm"),
+      legend.key.height = unit(0.75, "cm"),
+      legend.background = element_rect(fill = "transparent"),
+      legend.key = element_rect(fill = "transparent"),
+      panel.spacing = unit(1, "lines")
+      ) 
+
+
+fig_rt <- fig_rt +
+  scale_y_break(c(3200, 13000), 
+                scale = 1, space = 1) + 
+  ylab("Number of readers") +
+  xlab(NULL) +
+  scale_y_continuous(labels = label_comma()) +
+  scale_x_continuous(breaks = seq(2000, 2050, 1)) +
+  theme(axis.line.y.right = element_blank(),
+                                        axis.text.y.right = element_blank(),
+                                        axis.ticks.y.right = element_blank())
+
+ggsave("Figures/Readers over time.png",
+       dpi = 600,
+       width = 16,
+       height = 9)
+
+ggsave("PDF Figures/Readers over time.pdf",
+       dpi = 600,
+       width = 16,
+       height = 9)
+```
+
+### Create Prop Figure
+
+```{r}
+
+#Create the figure
+fig_rt_prop <- ggplot(data = n_reads,
+       aes(y = prop,
+           x = year,
+           color = modality)) +
+  #Geoms
+  geom_line(lwd = 1.5) +
+  geom_point(size = 6, pch = 18) +
+  #Title
+  ggtitle("Trends in the number of cardiac imagers across different modalities, 2013-2022") +
+  #Scales
+  scale_color_stata(name = "Modality") +
+  #Theme
+  theme_pubclean() +
+  theme(text = element_text(size = 23),
+      plot.title=element_text(face = "bold",hjust = 0.5, size = 18),
+      plot.subtitle = element_text(face = "bold", size = 10, hjust = 0.0, color = "grey45"),
+      axis.text.x = element_text(size = 16, face = "bold"),
+      axis.text.y = element_text(size = 15, face = "bold"),
+      axis.title.x = element_text(size = 25, face = "bold"),
+      axis.title.y = element_text(size = 21, face = "bold"),
+      axis.line = element_line(colour = "black", linewidth = 1.2),
+      plot.margin = margin(0.5, 1, 0.5, 1, "cm"),
+      strip.text = element_text(face = "bold"),
+      strip.background = element_rect(fill = "grey90"),
+      legend.position = "bottom",
+      legend.title = element_blank(),
+      legend.text = element_text(size = 16, face = "bold"),
+      legend.key.width = unit(4, "cm"),
+      legend.key.height = unit(0.75, "cm"),
+      legend.background = element_rect(fill = "transparent"),
+      legend.key = element_rect(fill = "transparent"),
+      panel.spacing = unit(1, "lines")
+      ) 
+
+fig_rt_prop <- fig_rt_prop +
+  scale_y_break(c(9, 33), 
+                scale = 1, space = 1) + 
+  scale_y_continuous(breaks = c(
+    seq(0, 8, 1),
+    seq(34, 60, 2)
+  )) +
+  scale_x_continuous(breaks = seq(2000, 2050, 1)) +
+  ylab("Proportion of readers (%)") +
+  xlab(NULL) +
+  theme(axis.line.y.right = element_blank(),
+                                        axis.text.y.right = element_blank(),
+                                        axis.ticks.y.right = element_blank())
+
+ggsave("Figures/Readers Prop over time.png",
+       dpi = 600,
+       width = 16,
+       height = 9)
+
+ggsave("PDF Figures/Readers Prop over time.pdf",
+       dpi = 600,
+       width = 16,
+       height = 9)
+```
+
+## Multimodality readers over time
+
+### Create data
+
+```{r}
+
+#Get the N of modalities read by each reader over time (For V1)
+n_mm_readers <- mm_readers %>%
+  group_by(year, n_modalities) %>%
+  summarise(n_readers = uniqueN(npi)) %>%
+  mutate(n_modalities = (n_modalities))
+
+#Aggregate them (For V2)
+bind_rows(
+n_mm_readers %>%
+  group_by(year) %>%
+  summarise(n_readers = sum(n_readers[n_modalities >= 1])) %>%
+  mutate(n_modalities = "Total"),
+n_mm_readers %>%
+  group_by(year) %>%
+  summarise(n_readers = sum(n_readers[n_modalities >= 2])) %>%
+  mutate(n_modalities = "Multimodality\n(≥2)"),
+n_mm_readers %>%
+  group_by(year) %>%
+  summarise(n_readers = sum(n_readers[n_modalities >= 3])) %>%
+  mutate(n_modalities = "Multimodality\n(≥3)"),
+n_mm_readers %>%
+  group_by(year) %>%
+  summarise(n_readers = sum(n_readers[n_modalities >= 4])) %>%
+  mutate(n_modalities = "Multimodality\n(≥4)"),
+n_mm_readers %>%
+  group_by(year) %>%
+  summarise(n_readers = sum(n_readers[n_modalities == 5])) %>%
+  mutate(n_modalities = "Multimodality\n(All five)")
+) -> agg_n_mm_readers
+
+
+#Convert to factor and reorder
+agg_n_mm_readers %>%
+  mutate(n_modalities = n_modalities %>%
+           fct_relevel("Total", "Multimodality\n(≥2)",
+                       "Multimodality\n(≥3)", "Multimodality\n(≥4)",
+                       "Multimodality\n(All five)")) -> agg_n_mm_readers
+```
+
+### Figure - V1
+
+```{r}
+#Create the figure
+fig_mmt_v1 <- ggplot(data = n_mm_readers,
+       aes(y = n_readers,
+           x = year,
+           color = factor(n_modalities))) +
+  #Facets
+  facet_grid(rows = vars(n_modalities),
+             scales = "free",
+             labeller = as_labeller(c(
+               "1" = "Only one",
+               "2" = "Two",
+               "3" = "Three",
+               "4" = "Four",
+               "5" = "All five")
+             )) +
+  #Geoms
+  geom_line(lwd = 1.5) +
+  geom_point(size = 6, pch = 18) +
+  #Title
+  ggtitle("Trends in the number of cardiac imagers by number of imaging modalities, 2013-2022") +
+  #Scales
+  scale_y_continuous(name = "Number of readers",
+                     labels = label_comma(accuracy = 1),
+                     expand = c(0.1, 0)) +
+  scale_x_continuous(name = "Year",
+                     breaks = seq(2013, 2022, 1)) +
+  scale_color_stata(name = "Number of modalities") +
+  #Theme
+  theme_pubclean() +
+  theme(text = element_text(size = 23),
+      plot.title=element_text(face = "bold",hjust = 0.5, size = 18),
+      plot.subtitle = element_text(face = "bold", size = 10, hjust = 0.0, color = "grey45"),
+      axis.text.x = element_text(size = 16, face = "bold"),
+      axis.text.y = element_text(size = 15, face = "bold"),
+      axis.title.x = element_text(size = 25, face = "bold"),
+      axis.title.y = element_text(size = 21, face = "bold"),
+      axis.line = element_line(colour = "black", linewidth = 1.2),
+      plot.margin = margin(0.5, 1, 0.5, 1, "cm"),
+      strip.text = element_text(face = "bold"),
+      strip.background = element_rect(fill = "grey90"),
+      legend.position = "none",
+      legend.title = element_blank(),
+      legend.text = element_text(size = 16, face = "bold"),
+      legend.key.width = unit(4, "cm"),
+      legend.key.height = unit(0.75, "cm"),
+      legend.background = element_rect(fill = "transparent"),
+      legend.key = element_rect(fill = "transparent"),
+      panel.spacing = unit(1, "lines")
+      ) 
+
+ggsave("Figures/Multimodality readers over time (Version 1).png",
+       dpi = 600,
+       width = 16,
+       height = 9)
+
+ggsave("Figures/Multimodality readers over time (Version 1).pdf",
+       dpi = 600,
+       width = 16,
+       height = 9)
+```
+
+### Figure - V2
+
+```{r}
+#Create the figure
+fig_mmt_v2 <- ggplot(data = agg_n_mm_readers,
+       aes(y = n_readers,
+           x = year,
+           color = n_modalities)) +
+  #Facets
+  facet_grid(rows = vars(n_modalities),
+             scales = "free"
+             ) +
+  #Geoms
+  geom_line(lwd = 1.5) +
+  geom_point(size = 6, pch = 18) +
+  #Title
+  ggtitle("Trends in the number of total and multimodality cardiac imagers, 2013-2022") +
+  #Scales
+  scale_y_continuous(name = "Number of readers",
+                     labels = label_comma(accuracy = 1),
+                     expand = c(0.1, 0)) +
+  scale_x_continuous(name = "Year",
+                     breaks = seq(2013, 2022, 1)) +
+  scale_color_stata(name = "Number of modalities") +
+  #Theme
+  theme_pubclean() +
+  theme(text = element_text(size = 16),
+      plot.title=element_text(face = "bold",hjust = 0.5, size = 18),
+      plot.subtitle = element_text(face = "bold", size = 10, hjust = 0.0, color = "grey45"),
+      axis.text.x = element_text(size = 16, face = "bold"),
+      axis.text.y = element_text(size = 15, face = "bold"),
+      axis.title.x = element_text(size = 25, face = "bold"),
+      axis.title.y = element_text(size = 21, face = "bold"),
+      axis.line = element_line(colour = "black", linewidth = 1.2),
+      plot.margin = margin(0.5, 1, 0.5, 1, "cm"),
+      strip.text = element_text(face = "bold"),
+      strip.background = element_rect(fill = "grey90"),
+      legend.position = "none",
+      legend.title = element_blank(),
+      legend.text = element_text(size = 16, face = "bold"),
+      legend.key.width = unit(4, "cm"),
+      legend.key.height = unit(0.75, "cm"),
+      legend.background = element_rect(fill = "transparent"),
+      legend.key = element_rect(fill = "transparent"),
+      panel.spacing = unit(1.5, "lines")
+      ) 
+
+ggsave("Figures/Multimodality readers over time (Version 2).png",
+       dpi = 600,
+       width = 16,
+       height = 9)
+
+ggsave("PDF Figures/Multimodality readers over time (Version 2).pdf",
+       dpi = 600,
+       width = 16,
+       height = 9)
+```
+
+## Combos
+
+### Create Data
+
+```{r}
+
+#Use lapply to calculate across different combos
+#Echo/SPECT, Echo/CT/MRI, CT/MRI, PET/CT/MRI
+lapply(
+  c("echo_spect", "echo_cta_mri", "cta_mri", "pet_cta_mri"),
+  function(modality_combo)
+mm_readers %>%
+group_by(year, get(modality_combo)) %>%
+  summarise(n_readers = uniqueN(npi)) %>%
+  mutate(prop_readers = 100*n_readers/sum(n_readers)) %>%
+  mutate(combo = modality_combo) %>%
+  filter(`get(modality_combo)` == 1) %>%
+  select(-`get(modality_combo)`)
+) %>%
+  rbindlist %>%
+  #Rename 
+  mutate(combo = str_replace_all(combo,
+                               c(
+                "pet" = "PET",
+                "echo" = "Echo",
+                "spect" = "SPECT",
+                "cta" = "CTA",
+                "mri" = "MRI",
+                "_" = " & "
+              ))) %>%
+  #Reorder
+                mutate(combo = combo %>%
+                         fct_relevel("Echo & SPECT",
+                                     "CTA & MRI",
+                                     "Echo & CTA & MRI",
+                                     "PET & CTA & MRI")) -> mm_readers_combo
+```
+
+### N Figure
+
+```{r}
+#Create the figure
+fig_combo_n <- ggplot(data = mm_readers_combo,
+       aes(y = n_readers,
+           x = year,
+           color = combo)) +
+  #Facets
+  facet_grid(rows = vars(combo),
+             scales = "free") +
+  #Geoms
+  geom_line(lwd = 1.5) +
+  geom_point(size = 6, pch = 18) +
+  #Title
+  ggtitle("Trends in the number of readers for different combinations of imaging modalities over time, 2013-2022") +
+  #Scales
+  scale_y_continuous(name = "Number of readers",
+                     labels = comma_format(),
+                     expand = c(0.1, 0)) +
+  scale_x_continuous(name = "Year",
+                     breaks = seq(2013, 2022, 1)) +
+  scale_color_stata(name = "Modality") +
+  #Theme
+  theme_pubclean() +
+  theme(text = element_text(size = 23),
+      plot.title=element_text(face = "bold",hjust = 0.5, size = 18),
+      plot.subtitle = element_text(face = "bold", size = 10, hjust = 0.0, color = "grey45"),
+      axis.text.x = element_text(size = 16, face = "bold"),
+      axis.text.y = element_text(size = 15, face = "bold"),
+      axis.title.x = element_text(size = 25, face = "bold"),
+      axis.title.y = element_text(size = 21, face = "bold"),
+      axis.line = element_line(colour = "black", linewidth = 1.2),
+      plot.margin = margin(0.5, 1, 0.5, 1, "cm"),
+      strip.text = element_text(size = 13, face = "bold"),
+      strip.background = element_rect(fill = "grey90"),
+      legend.position = "none",
+      legend.title = element_blank(),
+      legend.text = element_text(size = 16, face = "bold"),
+      legend.key.width = unit(4, "cm"),
+      legend.key.height = unit(0.75, "cm"),
+      legend.background = element_rect(fill = "transparent"),
+      legend.key = element_rect(fill = "transparent"),
+      panel.spacing = unit(1, "lines")
+      ) 
+
+ggsave("Figures/Readers over time (combos; N).png",
+       dpi = 600,
+       width = 16,
+       height = 9)
+
+ggsave("PDF Figures/Readers over time (combos; N).pdf",
+       dpi = 600,
+       width = 16,
+       height = 9)
+```
+
+### Prop Figure
+
+```{r}
+#Create the figure
+fig_combo_prop <- ggplot(data = mm_readers_combo,
+       aes(y = prop_readers,
+           x = year,
+           color = combo)) +
+  #Facets
+  facet_grid(rows = vars(combo),
+             scales = "free") +
+  #Geoms
+  geom_line(lwd = 1.5) +
+  geom_point(size = 6, pch = 18) +
+  #Title
+  ggtitle("Trends in the number of readers for different combinations of imaging modalities over time, 2013-2022") +
+  #Scales
+  scale_y_continuous(name = "Proportion of readers (%)",
+                     labels = comma_format(),
+                     expand = c(0.1, 0)) +
+  scale_x_continuous(name = "Year",
+                     breaks = seq(2013, 2022, 1)) +
+  scale_color_stata(name = "Modality") +
+  #Theme
+  theme_pubclean() +
+  theme(text = element_text(size = 23),
+      plot.title=element_text(face = "bold",hjust = 0.5, size = 18),
+      plot.subtitle = element_text(face = "bold", size = 10, hjust = 0.0, color = "grey45"),
+      axis.text.x = element_text(size = 16, face = "bold"),
+      axis.text.y = element_text(size = 15, face = "bold"),
+      axis.title.x = element_text(size = 25, face = "bold"),
+      axis.title.y = element_text(size = 21, face = "bold"),
+      axis.line = element_line(colour = "black", linewidth = 1.2),
+      plot.margin = margin(0.5, 1, 0.5, 1, "cm"),
+      strip.text = element_text(size = 13, face = "bold"),
+      strip.background = element_rect(fill = "grey90"),
+      legend.position = "none",
+      legend.title = element_blank(),
+      legend.text = element_text(size = 16, face = "bold"),
+      legend.key.width = unit(4, "cm"),
+      legend.key.height = unit(0.75, "cm"),
+      legend.background = element_rect(fill = "transparent"),
+      legend.key = element_rect(fill = "transparent"),
+      panel.spacing = unit(1, "lines")
+      ) 
+
+ggsave("Figures/Readers over time (combos; Prop).png",
+       dpi = 600,
+       width = 16,
+       height = 9)
+
+ggsave("PDF Figures/Readers over time (combos; Prop).pdf",
+       dpi = 600,
+       width = 16,
+       height = 9)
+```
+
+## Modalities-by-modality
+
+### Create Data
+
+```{r}
+#Get the N/prop of each modality reader who does other things too
+lapply(
+  c("echo", "pet", "spect", "mri", "cta"),
+  function(imaging_modality)
+  mm_readers %>%
+  filter(!!as.symbol(imaging_modality) == 1) %>%
+  group_by(year) %>%
+    #Calculate numbers
+  summarise(denom = imaging_modality,
+            denom_n = uniqueN(npi),
+            echo_n = uniqueN(npi[echo == 1]),
+            pet_n = uniqueN(npi[pet == 1]),
+            spect_n = uniqueN(npi[spect == 1]),
+            mri_n = uniqueN(npi[mri == 1]),
+            cta_n = uniqueN(npi[cta == 1]),
+            ) %>%
+    #Calculate porportions
+    mutate(
+      echo_prop = 100*echo_n/denom_n,
+      pet_prop = 100*pet_n/denom_n,
+      spect_prop = 100*spect_n/denom_n,
+      cta_prop = 100*cta_n/denom_n,
+      mri_prop = 100*mri_n/denom_n,
+    )
+) %>%
+  rbindlist -> mm_readers_by_modality
+
+#Change structure of the data.frame
+mm_readers_by_modality %>% 
+  pivot_longer(cols = c("pet", "spect", "echo", "mri", "cta") %>%
+                 {c(paste0(., "_n"),
+                    paste0(., "_prop"))
+                   },
+               names_to = c("other_modality",
+                            ".value"),
+               names_sep = "_"
+               ) -> mm_readers_by_modality
+
+#Rearrange & rename modalities
+mm_readers_by_modality %>%
+  mutate(across(c("denom", "other_modality"),
+                ~ . %>% str_replace_all(c(
+                  "pet" = "PET",
+                  "echo" = "Echo",
+                  "spect" = "SPECT",
+                  "cta" = "CTA",
+                  "mri" = "MRI"
+                )) %>%
+           fct_relevel(c("Echo", "SPECT", "PET", "CTA", "MRI"))
+                )
+  ) -> mm_readers_by_modality
+
+```
+
+### Figure
+
+```{r}
+#Create the figure
+fig_m_by_m <- ggplot(data = mm_readers_by_modality %>% 
+                filter(year == 2022) %>%
+                filter(denom != other_modality),
+       aes(y = prop,
+           x = other_modality,
+           fill = other_modality)) +
+  #Facets
+  facet_grid(cols = vars(denom),
+             scales = "free"
+             ) +
+  #Geoms
+  geom_col() +
+  #Title
+  ggtitle("Proportion of cardiac imagers who read other modalities in 2022") +
+  #Scales
+  scale_y_continuous(name = "Proportion (%)",
+                     expand = c(0, 0),
+                     limits = c(0, 105),
+                     breaks = seq(0, 100, 10)) +
+  scale_x_discrete(name = NULL) +
+  scale_fill_stata(name = "Number of modalities") +
+  #Theme
+  theme_pubclean() +
+  theme(text = element_text(size = 17),
+      plot.title=element_text(face = "bold",hjust = 0.5, size = 18),
+      plot.subtitle = element_text(face = "bold", size = 10, hjust = 0.0, color = "grey45"),
+      axis.text.x = element_text(size = 14, face = "bold"),
+      axis.text.y = element_text(size = 18, face = "bold"),
+      axis.title.x = element_text(size = 20, face = "bold"),
+      axis.title.y = element_text(size = 25, face = "bold"),
+      axis.line = element_line(colour = "black", linewidth = 1.2),
+      plot.margin = margin(0.5, 1, 0.5, 1, "cm"),
+      strip.text = element_text(size = 20, face = "bold"),
+      strip.background = element_rect(fill = "grey90"),
+      legend.position = "top",
+      legend.title = element_blank(),
+      legend.text = element_text(size = 16, face = "bold"),
+      legend.key.width = unit(4, "cm"),
+      legend.key.height = unit(0.75, "cm"),
+      legend.background = element_rect(fill = "transparent"),
+      legend.key = element_rect(fill = "transparent"),
+      panel.spacing = unit(1, "lines")
+      ) 
+
+ggsave("Multimodality readers by modality in 2022.png",
+       dpi = 600,
+       width = 16,
+       height = 9)
+```
+
+## Volume of readers (MM/Adv vs non-MM/Adv)
+
+### Create data
+
+```{r}
+#Aggregate by modality
+readers_by_modality %>%
+                mutate(modality = modality %>%
+                         fct_relevel("SPECT", "Echo",
+                                     "PET", "CTA", "MRI")) %>%
+                  filter(year == 2022) %>%
+  mutate(mm = n_modalities > 1) -> readers_by_modality_fig_df
+
+#Create one for the advanced figure
+readers_by_modality_fig_df %>%
+                          group_by(modality, advanced) %>%
+                          summarise(median_n_reads = median(n_reads),
+                                    q25_n_reads = quantile(n_reads, 0.25),
+                                    q75_n_reads = quantile(n_reads, 0.75)
+                                    ) %>%
+  data.table -> adv_readers_by_modality_fig_df
+#Create one for the MM figure
+readers_by_modality_fig_df %>%
+                          group_by(modality, mm) %>%
+                          summarise(median_n_reads = median(n_reads),
+                                    q25_n_reads = quantile(n_reads, 0.25),
+                                    q75_n_reads = quantile(n_reads, 0.75)
+                                    ) %>%
+  data.table -> mm_readers_by_modality_fig_df
+```
+
+### MM Figure
+
+```{r}
+
+#Create the figure
+fig_mm_volume <- ggplot(data = mm_readers_by_modality_fig_df,
+       aes(y = median_n_reads,
+           ymin = q25_n_reads,
+           ymax = q75_n_reads,
+           x = c(1.4, 1.6) %>% rep(5),
+           color = mm,
+           fill = mm)) +
+  ggh4x::facet_grid2(cols = vars(modality),
+                scales = "free_y", independent = "y") +
+   geom_errorbar(lwd = 2, width = 0.1) +
+  geom_point(size = 6) +
+  #Geoms
+  #Title
+  ggtitle("Number of reads interprted by multimodal (2 or more) and unimodal imagers in 2022") +
+  #Scales
+  scale_x_discrete(name = NULL,
+                   expand = c(0.1, 0)) +
+  scale_y_continuous(name = "Number of procedures per imager",
+                     trans = "log",
+                     limits = c(10, NA),
+                     breaks = c(10, 25, 50, 100, 250, 500, 1000, 2500)) +
+  scale_color_stata(name = NULL, labels = c("Unimodal", "Multimodal")) +
+  scale_fill_stata(name = NULL, labels = c("Unimodal", "Multimodal")) +
+  #Theme
+  theme_pubclean() +
+  theme(text = element_text(size = 23),
+      plot.title=element_text(face = "bold",hjust = 0.5, size = 18),
+      plot.subtitle = element_text(face = "bold", size = 10, hjust = 0.0, color = "grey45"),
+      axis.text.x = element_text(size = 16, face = "bold"),
+      axis.text.y = element_text(size = 15, face = "bold"),
+      axis.title.x = element_text(size = 25, face = "bold"),
+      axis.title.y = element_text(size = 21, face = "bold"),
+      axis.line = element_line(colour = "black", linewidth = 1.2),
+      plot.margin = margin(0.5, 1, 0.5, 1, "cm"),
+      strip.text = element_text(face = "bold"),
+      strip.background = element_rect(fill = "grey90"),
+      legend.position = "bottom",
+      legend.title = element_blank(),
+      legend.text = element_text(size = 16, face = "bold"),
+      legend.key.width = unit(4, "cm"),
+      legend.key.height = unit(0.75, "cm"),
+      legend.background = element_rect(fill = "transparent"),
+      legend.key = element_rect(fill = "transparent"),
+      panel.spacing = unit(1, "lines")
+      ) 
+
+ggsave("PDF Figures/Volume of readers by N of modalities.pdf",
+       dpi = 600,
+       width = 16,
+       height = 9)
+
+ggsave("Figures/Volume of readers by N of modalities.png",
+       dpi = 600,
+       width = 16,
+       height = 9)
+```
+
+### Adv Figure
+
+```{r}
+
+#Create the figure
+fig_adv_volume <- ggplot(data = adv_readers_by_modality_fig_df,
+       aes(y = median_n_reads,
+           ymin = q25_n_reads,
+           ymax = q75_n_reads,
+           x = c(1.4, 1.6) %>% rep(5),
+           color = factor(advanced))) +
+  ggh4x::facet_grid2(cols = vars(modality),
+                scales = "free_y", independent = "y") +
+   geom_errorbar(lwd = 2, width = 0.1) +
+  geom_point(size = 6) +
+  #Geoms
+  #Title
+  ggtitle("Number of reads interprted by advanced and non-advanced imagers in 2022") +
+  #Scales
+  scale_x_discrete(name = NULL,
+                   expand = c(0.1, 0)) +
+  scale_y_continuous(name = "Number of procedures per imager",
+                     trans = "log",
+                     limits = c(10, NA),
+                     breaks = c(10, 25, 50, 100, 250, 500, 1000, 2500)) +
+  scale_color_stata(name = NULL, labels = c("Non-advanced", "Advanced")) +
+  #Theme
+  theme_pubclean() +
+  theme(text = element_text(size = 23),
+      plot.title=element_text(face = "bold",hjust = 0.5, size = 18),
+      plot.subtitle = element_text(face = "bold", size = 10, hjust = 0.0, color = "grey45"),
+      axis.text.x = element_text(size = 16, face = "bold"),
+      axis.text.y = element_text(size = 15, face = "bold"),
+      axis.title.x = element_text(size = 25, face = "bold"),
+      axis.title.y = element_text(size = 21, face = "bold"),
+      axis.line = element_line(colour = "black", linewidth = 1.2),
+      plot.margin = margin(0.5, 1, 0.5, 1, "cm"),
+      strip.text = element_text(face = "bold"),
+      strip.background = element_rect(fill = "grey90"),
+      legend.position = "bottom",
+      legend.title = element_blank(),
+      legend.text = element_text(size = 16, face = "bold"),
+      legend.key.width = unit(4, "cm"),
+      legend.key.height = unit(0.75, "cm"),
+      legend.background = element_rect(fill = "transparent"),
+      legend.key = element_rect(fill = "transparent"),
+      panel.spacing = unit(1, "lines")
+      ) 
+
+ggsave("PDF Figures/Volume of readers by advanced.pdf",
+       dpi = 600,
+       width = 16,
+       height = 9)
+
+ggsave("Figures/Volume of readers by advanced.png",
+       dpi = 600,
+       width = 16,
+       height = 9)
+```
+
+## Advanced Readers
+
+### Create Data
+
+```{r}
+#Get N of advanced readers
+mm_readers %>%
+  ungroup %>%
+group_by(year, advanced) %>%
+  summarise(n_readers = uniqueN(npi)) %>%
+  mutate(prop_readers = 100*n_readers/sum(n_readers)) %>%
+  filter(advanced == 1) -> mm_readers_advanced
+```
+
+### N Figure
+
+```{r}
+#Create the figure
+fig_advanced_n <- ggplot(data = mm_readers_advanced,
+       aes(y = n_readers,
+           x = year)) +
+  #Geoms
+  geom_line(lwd = 3, color = "maroon") +
+  geom_point(size = 12, color = "maroon") +
+  #Title
+  ggtitle("Trends in the number of advanced (Echo/SPECT + one of PET/CTA/MRI) cardiac imagers, 2013-2022") +
+  #Scales
+  scale_y_continuous(name = "Number of readers",
+                     labels = label_comma(accuracy = 1),
+                     expand = c(0.1, 0)) +
+  scale_x_continuous(name = "Year",
+                     breaks = seq(2013, 2022, 1)) +
+  scale_color_stata(name = "Number of modalities") +
+  #Theme
+  theme_pubclean() +
+  theme(text = element_text(size = 23),
+      plot.title=element_text(face = "bold",hjust = 0.5, size = 18),
+      plot.subtitle = element_text(face = "bold", size = 10, hjust = 0.0, color = "grey45"),
+      axis.text.x = element_text(size = 20, face = "bold"),
+      axis.text.y = element_text(size = 20, face = "bold"),
+      axis.title.x = element_text(size = 25, face = "bold"),
+      axis.title.y = element_text(size = 21, face = "bold"),
+      axis.line = element_line(colour = "black", linewidth = 1.2),
+      plot.margin = margin(0.5, 1, 0.5, 1, "cm"),
+      strip.text = element_text(face = "bold"),
+      strip.background = element_rect(fill = "grey90"),
+      legend.position = "none",
+      legend.title = element_blank(),
+      legend.text = element_text(size = 16, face = "bold"),
+      legend.key.width = unit(4, "cm"),
+      legend.key.height = unit(0.75, "cm"),
+      legend.background = element_rect(fill = "transparent"),
+      legend.key = element_rect(fill = "transparent"),
+      panel.spacing = unit(1, "lines")
+      ) 
+
+ggsave("Figures/Advanced readers over time (N).png",
+       dpi = 600,
+       width = 16,
+       height = 9)
+
+ggsave("PDF Figures/Advanced readers over time (N).pdf",
+       dpi = 600,
+       width = 16,
+       height = 9)
+```
+
+### Prop Figure
+
+```{r}
+#Create the figure
+fig_advanced_prop <- ggplot(data = mm_readers_advanced,
+       aes(y = prop_readers,
+           x = year)) +
+  #Geoms
+  geom_line(lwd = 3, color = "maroon") +
+  geom_point(size = 12, color = "maroon") +
+  #Title
+  ggtitle("Trends in the proportion of advanced (Echo/SPECT + one of PET/CTA/MRI) cardiac imagers, 2013-2022") +
+  #Scales
+  scale_y_continuous(name = "Proportion (%)",
+                     breaks = seq(0, 100, 1),
+                     expand = c(0.1, 0)) +
+  scale_x_continuous(name = "Year",
+                     breaks = seq(2013, 2022, 1)) +
+  scale_color_stata(name = "Number of modalities") +
+  #Theme
+  theme_pubclean() +
+  theme(text = element_text(size = 23),
+      plot.title=element_text(face = "bold",hjust = 0.5, size = 18),
+      plot.subtitle = element_text(face = "bold", size = 10, hjust = 0.0, color = "grey45"),
+      axis.text.x = element_text(size = 20, face = "bold"),
+      axis.text.y = element_text(size = 20, face = "bold"),
+      axis.title.x = element_text(size = 25, face = "bold"),
+      axis.title.y = element_text(size = 21, face = "bold"),
+      axis.line = element_line(colour = "black", linewidth = 1.2),
+      plot.margin = margin(0.5, 1, 0.5, 1, "cm"),
+      strip.text = element_text(face = "bold"),
+      strip.background = element_rect(fill = "grey90"),
+      legend.position = "none",
+      legend.title = element_blank(),
+      legend.text = element_text(size = 16, face = "bold"),
+      legend.key.width = unit(4, "cm"),
+      legend.key.height = unit(0.75, "cm"),
+      legend.background = element_rect(fill = "transparent"),
+      legend.key = element_rect(fill = "transparent"),
+      panel.spacing = unit(1, "lines")
+      ) 
+
+ggsave("Figures/Advanced readers over time (Prop).png",
+       dpi = 600,
+       width = 16,
+       height = 9)
+
+ggsave("PDF Figures/Advanced readers over time (Prop).pdf",
+       dpi = 600,
+       width = 16,
+       height = 9)
+```
+
+## Advanced Readers (Sensitivity)
+
+### Create Data
+
+```{r}
+#Get N of advanced readers
+mm_readers %>%
+  ungroup %>%
+group_by(year, advanced_sens) %>%
+  summarise(n_readers = uniqueN(npi)) %>%
+  mutate(prop_readers = 100*n_readers/sum(n_readers)) %>%
+  filter(advanced_sens == 1) -> mm_readers_advanced_sens
+```
+
+### N Figure
+
+```{r}
+#Create the figure
+fig_advanced_n_sens <- ggplot(data = mm_readers_advanced_sens,
+       aes(y = n_readers,
+           x = year)) +
+  #Geoms
+  geom_line(lwd = 3, color = "maroon") +
+  geom_point(size = 12, color = "maroon") +
+  #Title
+  ggtitle("Trends in the number of advanced (Echo/SPECT/PET + one of CTA/MRI) cardiac imagers, 2013-2022") +
+  #Scales
+  scale_y_continuous(name = "Number of readers",
+                     labels = label_comma(accuracy = 1),
+                     expand = c(0.1, 0)) +
+  scale_x_continuous(name = "Year",
+                     breaks = seq(2013, 2022, 1)) +
+  scale_color_stata(name = "Number of modalities") +
+  #Theme
+  theme_pubclean() +
+  theme(text = element_text(size = 23),
+      plot.title=element_text(face = "bold",hjust = 0.5, size = 18),
+      plot.subtitle = element_text(face = "bold", size = 10, hjust = 0.0, color = "grey45"),
+      axis.text.x = element_text(size = 20, face = "bold"),
+      axis.text.y = element_text(size = 20, face = "bold"),
+      axis.title.x = element_text(size = 25, face = "bold"),
+      axis.title.y = element_text(size = 21, face = "bold"),
+      axis.line = element_line(colour = "black", linewidth = 1.2),
+      plot.margin = margin(0.5, 1, 0.5, 1, "cm"),
+      strip.text = element_text(face = "bold"),
+      strip.background = element_rect(fill = "grey90"),
+      legend.position = "none",
+      legend.title = element_blank(),
+      legend.text = element_text(size = 16, face = "bold"),
+      legend.key.width = unit(4, "cm"),
+      legend.key.height = unit(0.75, "cm"),
+      legend.background = element_rect(fill = "transparent"),
+      legend.key = element_rect(fill = "transparent"),
+      panel.spacing = unit(1, "lines")
+      ) 
+
+ggsave("Figures/Advanced Sensitivity readers over time (N).png",
+       dpi = 600,
+       width = 16,
+       height = 9)
+
+ggsave("PDF Figures/Advanced Sensitivity readers over time (N).pdf",
+       dpi = 600,
+       width = 16,
+       height = 9)
+```
+
+### Prop Figure
+
+```{r}
+#Create the figure
+fig_advanced_prop_sens <- ggplot(data = mm_readers_advanced_sens,
+       aes(y = prop_readers,
+           x = year)) +
+  #Geoms
+  geom_line(lwd = 3, color = "maroon") +
+  geom_point(size = 12, color = "maroon") +
+  #Title
+  ggtitle("Trends in the proportion of advanced (Echo/SPECT/PET + one of CTA/MRI) cardiac imagers, 2013-2022") +
+  #Scales
+  scale_y_continuous(name = "Proportion (%)",
+                     breaks = seq(0, 100, 1),
+                     expand = c(0.1, 0)) +
+  scale_x_continuous(name = "Year",
+                     breaks = seq(2013, 2022, 1)) +
+  scale_color_stata(name = "Number of modalities") +
+  #Theme
+  theme_pubclean() +
+  theme(text = element_text(size = 23),
+      plot.title=element_text(face = "bold",hjust = 0.5, size = 18),
+      plot.subtitle = element_text(face = "bold", size = 10, hjust = 0.0, color = "grey45"),
+      axis.text.x = element_text(size = 20, face = "bold"),
+      axis.text.y = element_text(size = 20, face = "bold"),
+      axis.title.x = element_text(size = 25, face = "bold"),
+      axis.title.y = element_text(size = 21, face = "bold"),
+      axis.line = element_line(colour = "black", linewidth = 1.2),
+      plot.margin = margin(0.5, 1, 0.5, 1, "cm"),
+      strip.text = element_text(face = "bold"),
+      strip.background = element_rect(fill = "grey90"),
+      legend.position = "none",
+      legend.title = element_blank(),
+      legend.text = element_text(size = 16, face = "bold"),
+      legend.key.width = unit(4, "cm"),
+      legend.key.height = unit(0.75, "cm"),
+      legend.background = element_rect(fill = "transparent"),
+      legend.key = element_rect(fill = "transparent"),
+      panel.spacing = unit(1, "lines")
+      ) 
+
+ggsave("Figures/Advanced Sensitivity readers over time (Prop).png",
+       dpi = 600,
+       width = 16,
+       height = 9)
+
+ggsave("PDF Figures/Advanced Sensitivity readers over time (Prop).pdf",
+       dpi = 600,
+       width = 16,
+       height = 9)
+```
+
+## Compare year of graduation
+
+### Create Data
+
+```{r}
+#Get avg age of readers by type of modality
+lapply(c("pet", "mri", "cta", "echo", "spect"),
+       function(modality_name)
+mm_readers_pc %>%
+  filter(year == 2022) %>%
+  group_by(!!as.symbol(modality_name)) %>%
+  summarise(median = median(grad_year, na.rm = T),
+            q25 = quantile(grad_year, 0.25, na.rm = T),
+            q75 = quantile(grad_year, 0.75, na.rm = T)) %>%
+  rename(modality := !!as.symbol(modality_name)) %>%
+  filter(modality == 1) %>%
+  mutate(modality = modality_name)
+)  %>%
+  rbindlist -> yog_readers_modalities_df
+
+#Get avg age of readers by N of modalities
+mm_readers_pc %>%
+  filter(year == 2022) %>%
+  group_by(n_modalities) %>%
+  summarise(median = median(grad_year, na.rm = T),
+            q25 = quantile(grad_year, 0.25, na.rm = T),
+            q75 = quantile(grad_year, 0.75, na.rm = T)) %>%
+  data.table -> yog_readers_n_modalities_df
+
+#Get age of readers by modality for figure
+lapply(c("pet", "mri", "cta", "echo", "spect"),
+       function(modality_name)
+mm_readers_pc %>%
+  filter(year == 2022 & get(modality_name) == 1) %>%
+  select(grad_year) %>%
+  mutate(modality := paste0(modality_name))
+)  %>%
+  rbindlist -> yog_readers_modalities_fig_df
+
+
+#Get wilcoxon Ps
+# lapply(c("pet", "mri", "cta", "echo", "spect"),
+#        function(modality_name)
+# wilcox.test(mm_readers_pc[get(modality_name) == 1 & year == 2022, grad_year],
+#             mm_readers_pc[get(modality_name) == 0 & year == 2022, grad_year])$p.value
+# ) -> age_readers_p
+# names(age_readers_p) <- c("pet", "mri", "cta", "echo", "spect")
+
+```
+
+### Modality Figure
+
+```{r}
+#Create the figure
+fig_modalities_yog <- ggplot(data = yog_readers_modalities_fig_df %>%
+                mutate(modality = modality %>%
+                         str_replace_all(., c(
+                          "pet" = "PET",
+                          "echo" = "Echo",
+                          "spect" = "SPECT",
+                          "cta" = "CTA",
+                          "mri" = "MRI"
+                        )) %>%
+                         fct_relevel("SPECT", "Echo",
+                                     "PET", "CTA", "MRI")) ,
+       aes(y = grad_year,
+           x = modality,
+           color = modality,
+           fill = modality)) +
+   ggdist::stat_halfeye(    # adjust bandwidth
+    p_limits = c(1960, 2022),
+    justification = -0.03,
+    .width = 0.5,
+    fatten_point = 4,
+    linewidth = 8) +
+  #Geoms
+  #Title
+  ggtitle("Year of medical school graduation for cardiac imagers across different modalities") +
+  #Scales
+  scale_y_continuous(name = "Year of graduation",
+                     breaks = seq(1900, 2100, 10)) +
+  scale_x_discrete(name = "Year") +
+  scale_color_stata(name = "Modality") +
+  scale_fill_stata(name = "Modality") +
+  #Theme
+  theme_pubclean() +
+  theme(text = element_text(size = 23),
+      plot.title=element_text(face = "bold",hjust = 0.5, size = 18),
+      plot.subtitle = element_text(face = "bold", size = 10, hjust = 0.0, color = "grey45"),
+      axis.text.x = element_text(size = 16, face = "bold"),
+      axis.text.y = element_text(size = 15, face = "bold"),
+      axis.title.x = element_text(size = 25, face = "bold"),
+      axis.title.y = element_text(size = 21, face = "bold"),
+      axis.line = element_line(colour = "black", linewidth = 1.2),
+      plot.margin = margin(0.5, 1, 0.5, 1, "cm"),
+      strip.text = element_text(face = "bold"),
+      strip.background = element_rect(fill = "grey90"),
+      legend.position = "none",
+      legend.title = element_blank(),
+      legend.text = element_text(size = 16, face = "bold"),
+      legend.key.width = unit(4, "cm"),
+      legend.key.height = unit(0.75, "cm"),
+      legend.background = element_rect(fill = "transparent"),
+      legend.key = element_rect(fill = "transparent"),
+      panel.spacing = unit(1, "lines")
+      ) 
+
+ggsave("Figures/Age of readers by modality.png",
+       dpi = 600,
+       width = 16,
+       height = 9)
+
+ggsave("PDF Figures/Age of readers by modality.pdf",
+       dpi = 600,
+       width = 16,
+       height = 9)
+```
+
+### N Modalities Figure
+
+```{r}
+#Create the figure
+fig_n_modalities_yog <- ggplot(data = mm_readers_pc %>% 
+                                 filter(year == 2022) %>%
+                                 mutate(n_modalities = n_modalities %>% factor) %>%
+  mutate(n_modalities = n_modalities %>%
+                str_replace_all(
+         c("1" = "Only one",
+            "2" = "Two",
+            "3" = "Three",
+            "4" = "Four or five",
+            "5" = "All five")
+         ) %>%
+           fct_relevel("Only one", "Two", "Three",
+                       "Four or five", "All five")),
+       aes(y = grad_year,
+           x = n_modalities,
+           color = n_modalities,
+           fill = n_modalities)) +
+   ggdist::stat_halfeye(    # adjust bandwidth
+    p_limits = c(1960, 2022),
+    justification = -0.03,
+    .width = 0.5,
+    fatten_point = 4,
+    linewidth = 8) +
+  #Geoms
+  #Title
+  ggtitle("Year of medical school graduation for cardiac imagers across number of modalities used") +
+  #Scales
+  scale_y_continuous(name = "Year of graduation",
+                     breaks = seq(1900, 2100, 10)) +
+  scale_x_discrete(name = "Year") +
+  scale_color_stata(name = "Modality") +
+  scale_fill_stata(name = "Modality") +
+  #Theme
+  theme_pubclean() +
+  theme(text = element_text(size = 23),
+      plot.title=element_text(face = "bold",hjust = 0.5, size = 18),
+      plot.subtitle = element_text(face = "bold", size = 10, hjust = 0.0, color = "grey45"),
+      axis.text.x = element_text(size = 16, face = "bold"),
+      axis.text.y = element_text(size = 15, face = "bold"),
+      axis.title.x = element_text(size = 25, face = "bold"),
+      axis.title.y = element_text(size = 21, face = "bold"),
+      axis.line = element_line(colour = "black", linewidth = 1.2),
+      plot.margin = margin(0.5, 1, 0.5, 1, "cm"),
+      strip.text = element_text(face = "bold"),
+      strip.background = element_rect(fill = "grey90"),
+      legend.position = "none",
+      legend.title = element_blank(),
+      legend.text = element_text(size = 16, face = "bold"),
+      legend.key.width = unit(4, "cm"),
+      legend.key.height = unit(0.75, "cm"),
+      legend.background = element_rect(fill = "transparent"),
+      legend.key = element_rect(fill = "transparent"),
+      panel.spacing = unit(1, "lines")
+      ) 
+
+ggsave("Figures/Age of readers by N of modalities.png",
+       dpi = 600,
+       width = 16,
+       height = 9)
+
+ggsave("PDF Figures/Age of readers by N of modalities.pdf",
+       dpi = 600,
+       width = 16,
+       height = 9)
+```
+
+## Cards/Rads division
+
+### Create Data
+
+```{r}
+#Create any modality by cardio/modality
+mm_readers[, .(n = uniqueN(npi)),
+           by = .(year, cards_rads)][, .(n, 
+                                        prop = 100*n/sum(n),
+                                        cards_rads
+                                        ),
+                                    by = year] -> mm_readers_cards_rads
+
+#Create advanced by cardio/modality
+mm_readers[(spect == 1 | echo == 1) & (cta == 1 | mri == 1 | pet == 1),
+           .(n = uniqueN(npi)),
+           by = .(year, cards_rads)][, .(n, 
+                                        prop = 100*n/sum(n),
+                                        cards_rads
+                                        ),
+                                    by = year] -> mm_readers_cards_rads_adv
+
+#Create advanced (sensitivity) by cardio/modality
+mm_readers[(spect == 1 | echo == 1 | pet == 1) & (cta == 1 | mri == 1),
+           .(n = uniqueN(npi)),
+           by = .(year, cards_rads)][, .(n, 
+                                        prop = 100*n/sum(n),
+                                        cards_rads
+                                        ),
+                                    by = year] -> mm_readers_cards_rads_adv_sens
+
+```
+
+### Total Figure
+
+```{r}
+#Create the figure
+fig_cr_total <- ggplot(data = mm_readers_cards_rads,
+       aes(y = prop,
+           x = year,
+           fill = cards_rads)) +
+  #Geoms
+  # geom_line(lwd = 2) +
+  # geom_point(size = 7) +
+  geom_col() +
+  #Title
+  ggtitle("Trends in the proportion of cardiac imagers according to specialty, 2013-2022") +
+  #Scales
+  scale_y_continuous(name = "Proportion (%)",
+                     limits = c(0, 100),
+                     breaks = seq(0, 100, 10)) +
+  scale_x_continuous(name = "Year",
+                     breaks = seq(2013, 2022, 1)) +
+  scale_fill_stata(name = "Modality") +
+  #Theme
+  theme_pubclean() +
+  theme(text = element_text(size = 23),
+      plot.title = element_text(face = "bold",hjust = 0.5, size = 18),
+      plot.subtitle = element_text(face = "bold", size = 10, hjust = 0.0, color = "grey45"),
+      axis.text.x = element_text(size = 20, face = "bold"),
+      axis.text.y = element_text(size = 15, face = "bold"),
+      axis.title.x = element_text(size = 25, face = "bold"),
+      axis.title.y = element_text(size = 21, face = "bold"),
+      axis.line = element_line(colour = "black", linewidth = 1.2),
+      plot.margin = margin(0.5, 1, 0.5, 1, "cm"),
+      strip.text = element_text(face = "bold"),
+      strip.background = element_rect(fill = "grey90"),
+      legend.position = "top",
+      legend.title = element_blank(),
+      legend.text = element_text(size = 16, face = "bold"),
+      legend.key.width = unit(3, "cm"),
+      legend.key.height = unit(0.75, "cm"),
+      legend.background = element_rect(fill = "transparent"),
+      legend.key = element_rect(fill = "transparent"),
+      panel.spacing = unit(1, "lines")
+      ) 
+
+ggsave("Figures/Readers specialty division.png",
+       dpi = 600,
+       width = 16,
+       height = 9)
+
+ggsave("PDF Figures/Readers specialty division.pdf",
+       dpi = 600,
+       width = 16,
+       height = 9)
+```
+
+### Advanced Figure
+
+```{r}
+#Create the figure
+fig_cr_adv <- ggplot(data = mm_readers_cards_rads_adv,
+       aes(y = prop,
+           x = year,
+           fill = cards_rads)) +
+  #Geoms
+  # geom_line(lwd = 2) +
+  # geom_point(size = 7) +
+  geom_col() +
+  #Title
+  ggtitle("Trends in the proportion of advanced cardiac imagers (SPECT or Echo + one of PET/CTA/MRI) according to specialty, 2013-2022") +
+  #Scales
+  scale_y_continuous(name = "Proportion (%)",
+                     limits = c(0, 100),
+                     breaks = seq(0, 100, 10)) +
+  scale_x_continuous(name = "Year",
+                     breaks = seq(2013, 2022, 1)) +
+  scale_fill_stata(name = "Modality") +
+  #Theme
+  theme_pubclean() +
+  theme(text = element_text(size = 23),
+      plot.title = element_text(face = "bold",hjust = 0.5, size = 18),
+      plot.subtitle = element_text(face = "bold", size = 10, hjust = 0.0, color = "grey45"),
+      axis.text.x = element_text(size = 20, face = "bold"),
+      axis.text.y = element_text(size = 15, face = "bold"),
+      axis.title.x = element_text(size = 25, face = "bold"),
+      axis.title.y = element_text(size = 21, face = "bold"),
+      axis.line = element_line(colour = "black", linewidth = 1.2),
+      plot.margin = margin(0.5, 1, 0.5, 1, "cm"),
+      strip.text = element_text(face = "bold"),
+      strip.background = element_rect(fill = "grey90"),
+      legend.position = "top",
+      legend.title = element_blank(),
+      legend.text = element_text(size = 16, face = "bold"),
+      legend.key.width = unit(3, "cm"),
+      legend.key.height = unit(0.75, "cm"),
+      legend.background = element_rect(fill = "transparent"),
+      legend.key = element_rect(fill = "transparent"),
+      panel.spacing = unit(1, "lines")
+      ) 
+
+ggsave("Figures/Advanced readers specialty division.png",
+       dpi = 600,
+       width = 16,
+       height = 9)
+
+ggsave("PDF Figures/Advanced readers specialty division.pdf",
+       dpi = 600,
+       width = 16,
+       height = 9)
+```
+
+### Advanced Sensitivity Figure
+
+```{r}
+#Create the figure
+fig_cr_adv_sens <- ggplot(data = mm_readers_cards_rads_adv_sens,
+       aes(y = prop,
+           x = year,
+           fill = cards_rads)) +
+  #Geoms
+  # geom_line(lwd = 2) +
+  # geom_point(size = 7) +
+  geom_col() +
+  #Title
+  ggtitle("Trends in the proportion of advanced cardiac imagers (SPECT/Echo/PET + one of CTA/MRI) according to specialty, 2013-2022") +
+  #Scales
+  scale_y_continuous(name = "Proportion (%)",
+                     limits = c(0, 100),
+                     breaks = seq(0, 100, 10)) +
+  scale_x_continuous(name = "Year",
+                     breaks = seq(2013, 2022, 1)) +
+  scale_fill_stata(name = "Modality") +
+  #Theme
+  theme_pubclean() +
+  theme(text = element_text(size = 23),
+      plot.title = element_text(face = "bold",hjust = 0.5, size = 18),
+      plot.subtitle = element_text(face = "bold", size = 10, hjust = 0.0, color = "grey45"),
+      axis.text.x = element_text(size = 20, face = "bold"),
+      axis.text.y = element_text(size = 15, face = "bold"),
+      axis.title.x = element_text(size = 25, face = "bold"),
+      axis.title.y = element_text(size = 21, face = "bold"),
+      axis.line = element_line(colour = "black", linewidth = 1.2),
+      plot.margin = margin(0.5, 1, 0.5, 1, "cm"),
+      strip.text = element_text(face = "bold"),
+      strip.background = element_rect(fill = "grey90"),
+      legend.position = "top",
+      legend.title = element_blank(),
+      legend.text = element_text(size = 16, face = "bold"),
+      legend.key.width = unit(3, "cm"),
+      legend.key.height = unit(0.75, "cm"),
+      legend.background = element_rect(fill = "transparent"),
+      legend.key = element_rect(fill = "transparent"),
+      panel.spacing = unit(1, "lines")
+      ) 
+
+ggsave("Figures/Advanced Sensitivity readers specialty division.png",
+       dpi = 600,
+       width = 16,
+       height = 9)
+
+ggsave("PDF Figures/Advanced Sensitivity readers specialty division.pdf",
+       dpi = 600,
+       width = 16,
+       height = 9)
+
+
+```
+
+## Women (by N/type)
+
+### Create data
+
+```{r}
+#Loop over number of thresholds (1 to 5)
+lapply(1:5,
+       function(threshold)
+mm_readers_gender %>%
+  filter(n_modalities >= threshold) %>%
+  group_by(year) %>%
+  summarise(
+    prop_fem = 100*uniqueN(npi[gender == "Women"])/uniqueN(npi)
+    ) %>%
+  mutate(n_modalities = threshold)
+) %>%
+  rbindlist %>%
+       mutate(n_modalities = n_modalities %>%
+                str_replace_all(
+         c("1" = "At least one",
+            "2" = "Two or more",
+            "3" = "Three or more",
+            "4" = "Four or five",
+            "5" = "All five")
+         ) %>%
+           fct_relevel("At least one", "Two or more",
+                  "Three or more", "Four or five",
+                  "All five")) -> fem_readers
+
+#Loop over types of modalities
+lapply(c("echo", "spect", "pet", "cta", "mri"),
+       function(modality_name)
+mm_readers_gender %>%
+  filter(!!as.symbol(modality_name) == 1) %>%
+  group_by(year) %>%
+  summarise(
+    prop_fem = 100*uniqueN(npi[gender == "Women"])/uniqueN(npi)
+    ) %>%
+  mutate(type = modality_name %>% factor)
+) %>%
+  rbindlist -> fem_readers_type
+
+#Rename
+fem_readers_type[, type := type %>%
+                         str_replace_all(replacement_string)]
+```
+
+### Type figure
+
+```{r}
+#Create the figure
+fig_fem_type <- ggplot(data = fem_readers_type,
+       aes(y = prop_fem,
+           x = year,
+           color = type)) +
+  #Geoms
+  geom_line(lwd = 2) +
+  geom_point(size = 7) +
+  facet_grid(rows = vars(type)) +
+  #Title
+  ggtitle("Trends in the proportion of women readers over time, 2013-2022") +
+  #Scales
+  scale_y_continuous(name = "Proportion (%)",
+                     expand = c(0.1, 0),
+                     breaks = seq(0, 20, 4)) +
+  scale_x_continuous(name = "Year",
+                     breaks = seq(2013, 2022, 1)) +
+  scale_color_stata(name = "Modality") +
+  #Theme
+  theme_pubclean() +
+  theme(text = element_text(size = 23),
+      plot.title = element_text(face = "bold",hjust = 0.5, size = 18),
+      plot.subtitle = element_text(face = "bold", size = 10, hjust = 0.0, color = "grey45"),
+      axis.text.x = element_text(size = 20, face = "bold"),
+      axis.text.y = element_text(size = 15, face = "bold"),
+      axis.title.x = element_text(size = 25, face = "bold"),
+      axis.title.y = element_text(size = 21, face = "bold"),
+      axis.line = element_line(colour = "black", linewidth = 1.2),
+      plot.margin = margin(0.5, 1, 0.5, 1, "cm"),
+      strip.text = element_text(face = "bold"),
+      strip.background = element_rect(fill = "grey90"),
+      legend.position = "none",
+      legend.title = element_blank(),
+      legend.text = element_text(size = 16, face = "bold"),
+      legend.key.width = unit(3, "cm"),
+      legend.key.height = unit(0.75, "cm"),
+      legend.background = element_rect(fill = "transparent"),
+      legend.key = element_rect(fill = "transparent"),
+      panel.spacing = unit(1, "lines")
+      ) 
+
+ggsave("Figures/Female readers over time by type.png",
+       dpi = 600,
+       width = 16,
+       height = 9)
+
+ggsave("PDF Figures/Female readers over time by type.pdf",
+       dpi = 600,
+       width = 16,
+       height = 9)
+```
+
+### Modalities % figure
+
+```{r}
+#Create the figure
+fig_fem_modalities_n <- ggplot(data = fem_readers,
+       aes(y = prop_fem,
+           x = year,
+           color = n_modalities)) +
+  facet_grid(rows = vars(n_modalities),
+             scale = "free") +
+  #Geoms
+  geom_line(lwd = 2) +
+  geom_point(size = 10) +
+  #Title
+  ggtitle("Trends in the representation of women among cardiac imagers over time, 2013-2022") +
+  #Scales
+  scale_y_continuous(name = "Proportion (%)",
+                     expand = c(0.2, 0)) +
+  scale_x_continuous(name = "Year",
+                     breaks = seq(2013, 2022, 1)) +
+  scale_color_stata(name = "Modality") +
+  #Theme
+  theme_pubclean() +
+  theme(text = element_text(size = 16),
+      plot.title=element_text(face = "bold",hjust = 0.5, size = 18),
+      plot.subtitle = element_text(face = "bold", size = 10, hjust = 0.0, color = "grey45"),
+      axis.text.x = element_text(size = 20, face = "bold"),
+      axis.text.y = element_text(size = 15, face = "bold"),
+      axis.title.x = element_text(size = 25, face = "bold"),
+      axis.title.y = element_text(size = 21, face = "bold"),
+      axis.line = element_line(colour = "black", linewidth = 1.2),
+      plot.margin = margin(0.5, 1, 0.5, 1, "cm"),
+      strip.text = element_text(face = "bold"),
+      strip.background = element_rect(fill = "grey90"),
+      legend.position = "none",
+      legend.title = element_blank(),
+      legend.text = element_text(size = 16, face = "bold"),
+      legend.key.width = unit(3, "cm"),
+      legend.key.height = unit(0.75, "cm"),
+      legend.background = element_rect(fill = "transparent"),
+      legend.key = element_rect(fill = "transparent"),
+      panel.spacing = unit(1, "lines")
+      ) 
+
+ggsave("Figures/Female readers over time by N of modalities.png",
+       dpi = 600,
+       width = 16,
+       height = 9)
+
+ggsave("PDF Figures/Female readers over time by N of modalities.pdf",
+       dpi = 600,
+       width = 16,
+       height = 9)
+```
+
+## Imagers by state
+
+### Advanced maps
+
+#### N of imagers
+
+```{r}
+fig_adv_n_map <- plot_usmap(data = states_n, 
+           values = "n_advanced") +
+    scale_fill_viridis_c(name = "Number of imagers",
+                                breaks = seq(0, 2000, 50)) +
+      ggtitle("State-level number of cardiac imagers who read Echo/SPECT + one of PET/CTA/MRI in 2022") +
+  #Customize theme
+  theme(#legend.key.width = unit(5,"cm"), legend.key.height = unit(10,"cm"),
+    legend.text = element_text(size = 18, face = "bold"), #legend.position = "bottom",
+    legend.title = element_text(size = 16, face = "bold"),
+    legend.background = element_blank(), 
+    legend.key = element_blank(),
+    legend.position = c(0.6, 0.001),
+    plot.title=element_text(face = "bold", hjust = 0.5, size = 15),
+    panel.grid = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank()) +
+  guides(fill = guide_colourbar(direction = "horizontal", 
+                                title.position = "top",
+                                barwidth = 20, barheight = 3,
+                                ticks.colour = "black", ticks.linewidth = 1,
+                                override.aes = list(size = 12))
+  ) 
+
+#Save plot!
+ggsave(filename = "Figures/US States (N).png",
+       bg = "white",
+       dpi = 600,
+       width = 13,
+       height = 9)
+
+ggsave(filename = "PDF Figures/US States (N).pdf",
+       bg = "white",
+       dpi = 600,
+       width = 13,
+       height = 9)
+```
+
+#### % of imagers
+
+```{r}
+
+#Create figure
+fig_adv_prop_map <- plot_usmap(data = states_n, 
+           values = "prop_advanced") +
+    scale_fill_viridis_c(name = "Proportion (%)",
+                         breaks = seq(0, 100, 5)) +
+      ggtitle("State-level proportion of cardiac imagers who read Echo/SPECT + one of PET/CTA/MRI in 2022") +
+  #Customize theme
+  theme(#legend.key.width = unit(5,"cm"), legend.key.height = unit(10,"cm"),
+    legend.text = element_text(size = 18, face = "bold"), #legend.position = "bottom",
+    legend.title = element_text(size = 16, face = "bold"),
+    legend.background = element_blank(), 
+    legend.key = element_blank(),
+    legend.position = c(0.6, 0.001),
+    plot.title=element_text(face = "bold", hjust = 0.5, size = 20),
+    panel.grid = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank()) +
+  guides(fill = guide_colourbar(direction = "horizontal", 
+                                title.position = "top",
+                                barwidth = 20, barheight = 3,
+                                ticks.colour = "black", ticks.linewidth = 1,
+                                override.aes = list(size = 12))
+  ) 
+
+#Save plot!
+ggsave(filename = "Figures/US States (Adv Prop).png",
+       bg = "white",
+       dpi = 600,
+       width = 13,
+       height = 9)
+
+ggsave(filename = "PDF Figures/US States (Adv Prop).pdf",
+       bg = "white",
+       dpi = 600,
+       width = 13,
+       height = 9)
+```
+
+#### Density
+
+```{r}
+#Create figure
+fig_adv_density_map <- plot_usmap(data = states_n, 
+           values = "density_advanced") +
+    scale_fill_viridis_c(name = "Density (per million)") +
+      ggtitle("State-level population density (per million) of cardiac imagers who read Echo/SPECT + one of PET/CTA/MRI in 2022") +
+  #Customize theme
+  theme(#legend.key.width = unit(5,"cm"), legend.key.height = unit(10,"cm"),
+    legend.text = element_text(size = 18, face = "bold"), #legend.position = "bottom",
+    legend.title = element_text(size = 16, face = "bold"),
+    legend.background = element_blank(), 
+    legend.key = element_blank(),
+    legend.position = c(0.6, 0.001),
+    plot.title=element_text(face = "bold", hjust = 0.5, size = 17),
+    panel.grid = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank()) +
+  guides(fill = guide_colourbar(direction = "horizontal", 
+                                title.position = "top",
+                                barwidth = 20, barheight = 3,
+                                ticks.colour = "black", ticks.linewidth = 1,
+                                override.aes = list(size = 12))
+  ) 
+
+#Save plot!
+ggsave(filename = "Figures/US States (Advanced Density).png",
+       bg = "white",
+       dpi = 600,
+       width = 13,
+       height = 9)
+
+ggsave(filename = "PDF Figures/US States (Advanced Density).pdf",
+       bg = "white",
+       dpi = 600,
+       width = 13,
+       height = 9)
+```
+
+# Save the output
+
+```{r}
+save(
+  #Data
+  n_services, 
+  n_services_total,
+   n_mm_readers,
+   mm_readers_advanced,
+   mm_readers_by_modality,
+   states_n,
+   mm_readers_cards_rads_adv,
+   mm_readers_cards_rads,
+   yog_readers_modalities_df,
+  yog_readers_n_modalities_df,
+  mm_readers_by_modality_fig_df,
+  adv_readers_by_modality_fig_df,
+   #Figures
+  #1
+  fig_pt,
+  fig_pt_prop,
+  fig_rt,
+  fig_rt_prop,
+  #2
+  fig_mmt_v1,
+  fig_advanced_n,
+  fig_advanced_prop,
+  fig_m_by_m,
+  #3
+  fig_adv_n_map,
+  fig_adv_prop_map,
+  fig_adv_density_map,
+  #4
+  fig_cr_total,
+  fig_cr_adv,
+  #5
+  fig_modalities_yog,
+  fig_n_modalities_yog,
+  #6
+  fig_mm_volume,
+  fig_adv_volume,
+  #Supplementary
+  codes_used,
+  codes_used_table,
+  fig_pt_total,
+  fig_advanced_n_sens,
+  fig_advanced_prop_sens,
+  fig_cr_adv_sens,
+     file = "Output Data [Results].R")
+```

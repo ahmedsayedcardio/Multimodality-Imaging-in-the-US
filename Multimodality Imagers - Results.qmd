@@ -1,0 +1,160 @@
+---
+title: "Multimodality Imagers in the US, 2013-2022"
+subtitle: "An Analysis of Medicare Data"
+execute:
+  echo: false
+format: 
+  html:
+    toc: true
+    toc-expand: true
+    toc-location: body
+date: 2-5-2024
+theme: lightly
+author:
+  - name: "Ahmed Sayed (asu.ahmed.sayed@gmail.com)"
+    affiliations: "Houston Methodist DeBakey Heart & Vascular Center, Houston, Texas, USA"
+    address: 6550 Fannin Street
+    city: Houston
+    state: Texas
+    postal: 77030
+embed-resources: true
+toc-title: Contents
+page-layout: full
+code-fold: true
+editor: visual
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+#Load data
+load("Output Data [Results].R")
+
+#Load libraries & functions
+library(data.table)
+library(dplyr)
+library(scales)
+library(ggbreak)
+
+#Round to 1 decimal and include zero if needed
+r1 <- function(x) {
+  x %>% round(1) %>% format(nsmall = 1)
+}
+
+#Convert relevant data to data.table format
+n_mm_readers <- data.table(n_mm_readers)
+mm_readers_advanced <- data.table(mm_readers_advanced)
+mm_readers_by_modality <- data.table(mm_readers_by_modality)
+```
+
+## **Results**
+
+**Temporal trends in the use and readers of cardiac imaging modalities**
+
+                From 2013 to 2022, the number of Echo procedures declined from `r n_services[year == 2013][modality == "Echo", n %>% comma]` to `r n_services[year == 2022][modality == "Echo", n %>% comma]` and SPECT scans declined from `r n_services[year == 2013][modality == "SPECT", n %>% comma]` to `r n_services[year == 2022][modality == "SPECT", n %>% comma]`. In contrast, the number of PET scans increased by approximately `r round(n_services[year %in% c(2013, 2022)][modality == "PET", n[2]/n[1]], 0)`-fold, from `r n_services[year == 2013][modality == "PET", n %>% comma]` to `r n_services[year == 2022][modality == "PET", n %>% comma]`; the number of CTA scans increased by `r round(n_services[year %in% c(2013, 2022)][modality == "CTA", n[2]/n[1]], 0)`-fold from `r n_services[year == 2013][modality == "CTA", n %>% comma]` to `r n_services[year == 2022][modality == "CTA", n %>% comma]`; and the number of MRI scans increased by `r round(n_services[year %in% c(2013, 2022)][modality == "MRI", n[2]/n[1]], 0)`-fold from `r n_services[year == 2013][modality == "MRI", n %>% comma]` to `r n_services[year == 2022][modality == "MRI", n %>% comma]` (**Figure 1A)**. Similar trends were observed for the number of readers, except that echo readers increased slightly over time (**Figure 1B**). Overall, the total number of imaging procedures has declined over time, from `r n_services_total[year == 2013, n %>% comma]` in 2013 to `r n_services_total[year == 2022, n %>% comma]` in 2022. This decrease was entirely driven by a decrease from a peak of `r n_services_total[year == 2019, n %>% comma]` procedures in 2019 to a trough of `r n_services_total[year == 2020, n %>% comma]` procedures in 2020. Procedure volumes in 2021 (`r n_services_total[year == 2021, n %>% comma]`) and 2022 (`r n_services_total[year == 2022, n %>% comma]`) have increased but not to pre-2020 levels **(Supplementary Figure 1)**.
+
+n_services_total\[year == 2013, n %\>% comma\]
+
+n_services_total\[year == 2022, n %\>% comma\]
+
+                As a proportion of the total number of cardiac imaging procedures, the use of SPECT declined markedly from `r n_services[year == 2013][modality == "SPECT", prop %>% r1]`% in 2013 to `r n_services[year == 2022][modality == "SPECT", prop %>% r1]`% in 2022. The use of echo increased slightly from `r n_services[year == 2013][modality == "Echo", prop %>% r1]`% in 2013 to `r n_services[year == 2022][modality == "Echo", prop %>% r1]`% in 2022. Cumulatively, the use of PET/CTA/MRI increased from `r n_services[year == 2013][modality %in% c("PET", "MRI", "CTA"), prop %>% sum %>% r1]`% in 2013 to `r n_services[year == 2022][modality %in% c("PET", "MRI", "CTA"), prop %>% sum %>% r1]`% in 2022 (**Figure 1C**). Similar trends were observed for the number of readers (**Figure 1D**).
+
+**Temporal trends in multimodal and advanced cardiac imagers**
+
+                The number of imagers who read only 1 modality or 2 modalities declined from 2013 to 2022 (`r n_mm_readers[n_modalities == 1][year == 2013, n_readers %>% comma]` vs `r n_mm_readers[n_modalities == 1][year == 2022, n_readers %>% comma]` and `r n_mm_readers[n_modalities == 2][year == 2013, n_readers %>% comma]` vs `r n_mm_readers[n_modalities == 2][year == 2022, n_readers %>% comma]` respectively), whereas the number of imagers who read 3, 4, or all five modalities increased substantially (`r n_mm_readers[n_modalities == 3][year == 2013, n_readers %>% comma]` vs `r n_mm_readers[n_modalities == 3][year == 2022, n_readers %>% comma]`; `r n_mm_readers[n_modalities == 4][year == 2013, n_readers %>% comma]` vs `r n_mm_readers[n_modalities == 4][year == 2022, n_readers %>% comma]`; and `r n_mm_readers[n_modalities == 5][year == 2013, n_readers %>% comma]` vs `r n_mm_readers[n_modalities == 5][year == 2022, n_readers %>% comma]` respectively, **Figure 2A**). The number of advanced readers, defined as those reading Echo or SPECT and one of PET/CTA/MRI, increased from `r mm_readers_advanced[year == 2013, n_readers %>% comma]` in 2013 to `r mm_readers_advanced[year == 2022, n_readers %>% comma]` in 2022 (**Figure 2B**). When alternatively viewed as a proportion of the total number of cardiac imagers, there was also a notable increase from `r mm_readers_advanced[year == 2013, prop_readers %>% r1]`% to `r mm_readers_advanced[year == 2022, prop_readers %>% r1]`% (**Figure 2C**). Imagers reading PET were the most likely to also read echo (`r mm_readers_by_modality[year == 2022][denom == "PET" & other_modality == "Echo", prop %>% r1]`%) and SPECT (`r mm_readers_by_modality[year == 2022][denom == "PET" & other_modality == "SPECT", prop %>% r1]`%), whereas those reading MRI were most likely to also read CTA (`r mm_readers_by_modality[year == 2022][denom == "MRI" & other_modality == "CTA", prop %>% r1]`%) (**Figure 2D**).
+
+**Geographical differences in access to advanced cardiac imagers**
+
+                The number of advanced imagers per state (unadjusted for population size) is shown in **Figure 3A**. There were clear geographic differences in the proportion of advanced imagers between different states/territories, with the lowest 3 being `r states_n[order(prop_advanced)][1, state_full]` (`r states_n[order(prop_advanced)][1, n_advanced]` advanced imager out of `r states_n[order(prop_advanced)][1, n]` total imagers; `r states_n[order(prop_advanced)][1, prop_advanced %>% r1]`%), `r states_n[order(prop_advanced)][2, state_full]` (`r states_n[order(prop_advanced)][2, n_advanced]` advanced imagers out of `r states_n[order(prop_advanced)][2, n]` total imagers; `r states_n[order(prop_advanced)][2, prop_advanced %>% r1]`%), and `r states_n[order(prop_advanced)][3, state_full]` (`r states_n[order(prop_advanced)][3, n_advanced]` advanced imagers out of `r states_n[order(prop_advanced)][3, n]` total imagers; `r states_n[order(prop_advanced)][3, prop_advanced %>% r1]`%) **(Figure 3B)**. These 3 states/territories also had a low number of advanced imagers relative to their population (`r states_n[order(prop_advanced)][1, density_advanced %>% r1]`/million for `r states_n[order(prop_advanced)][1, state_full]` , `r states_n[order(prop_advanced)][2, density_advanced %>% r1]`/million for `r states_n[order(prop_advanced)][2, state_full]`, and `r states_n[order(prop_advanced)][3, density_advanced %>% r1]`/million for `r states_n[order(prop_advanced)][3, state_full]`) (**Figure 3C**).
+
+**Temporal trends in the specialties of readers**
+
+               The proportion of cardiac imagers from 2013 to 2022 who were cardiologists increased slightly from `r mm_readers_cards_rads[cards_rads == "Cardiology"][year == 2013, prop %>% r1]`% in 2013 to `r mm_readers_cards_rads[cards_rads == "Cardiology"][year == 2022, prop %>% r1]`% in 2022, whereas for radiologists, the proportion decreased slightly from `r mm_readers_cards_rads[cards_rads == "Radiology"][year == 2013, prop %>% r1]`% to `r mm_readers_cards_rads[cards_rads == "Radiology"][year == 2022, prop %>% r1]`% (**Figure 4A**). When examining advanced imagers, the proportion who were cardiologists increased more markedly over time, from `r mm_readers_cards_rads_adv[cards_rads == "Cardiology"][year == 2013, prop %>% r1]`% in 2013 to `r mm_readers_cards_rads_adv[cards_rads == "Cardiology"][year == 2022, prop %>% r1]`% in 2022, whereas the proportion who were radiologists decreased `r mm_readers_cards_rads_adv[cards_rads == "Radiology"][year == 2013, prop %>% r1]`% in 2013 to `r mm_readers_cards_rads_adv[cards_rads == "Radiology"][year == 2022, prop %>% r1]`% in 2022 (**Figure 4B**).
+
+**Ages of different modality imagers**
+
+Using year of medical school graduation (YOG) as a surrogate for physician age, the oldest imagers were those reading SPECT (median YOG: `r yog_readers_modalities_df[modality == "spect", median]`; IQR: `r yog_readers_modalities_df[modality == "spect", q25]` to `r yog_readers_modalities_df[modality == "spect", q75]`), Echo (median YOG: `r yog_readers_modalities_df[modality == "echo", median]`; IQR: `r yog_readers_modalities_df[modality == "echo", q25]` to `r yog_readers_modalities_df[modality == "echo", q75]`), and PET (median YOG: `r yog_readers_modalities_df[modality == "pet", median]`; IQR: `r yog_readers_modalities_df[modality == "pet", q25]` to `r yog_readers_modalities_df[modality == "pet", q75]`). In contrast, those who read CTA (median YOG: `r yog_readers_modalities_df[modality == "cta", median]`; IQR: `r yog_readers_modalities_df[modality == "cta", q25]` to `r yog_readers_modalities_df[modality == "cta", q75]`) or (median YOG: `r yog_readers_modalities_df[modality == "mri", median]`; IQR: `r yog_readers_modalities_df[modality == "mri", q25]` to `r yog_readers_modalities_df[modality == "mri", q75]`) were younger (**Figure 5A**). Additionally, the oldest readers were those who read 1 (median YOG: `r yog_readers_n_modalities_df[n_modalities == 1, median]`; IQR: `r yog_readers_n_modalities_df[n_modalities == 1, q25]` to `r yog_readers_n_modalities_df[n_modalities == 1, q75]`) or 2 (median YOG: `r yog_readers_n_modalities_df[n_modalities == 2, median]`; IQR: `r yog_readers_n_modalities_df[n_modalities == 2, q25]` to `r yog_readers_n_modalities_df[n_modalities == 2, q75]`) modalities, whereas the youngest readers were those who read all 5 modalities (median YOG: `r yog_readers_n_modalities_df[n_modalities == 5, median]`; IQR: `r yog_readers_n_modalities_df[n_modalities == 5, q25]` to `r yog_readers_n_modalities_df[n_modalities == 5, q75]`) (**Figure 5B**).
+
+**Volume of procedures**
+
+**Figure 6A** shows the volume of procedures for each modality stratified into multimodal and unimodal imagers. Across all modalities, the median number of procedures was greater for multimodal vs unimodal imagers (`r mm_readers_by_modality_fig_df[modality == "SPECT" & mm == 1, median_n_reads]` vs. `r mm_readers_by_modality_fig_df[modality == "SPECT" & mm == 0, median_n_reads]` for SPECT, `r mm_readers_by_modality_fig_df[modality == "Echo" & mm == 1, median_n_reads]` vs. `r mm_readers_by_modality_fig_df[modality == "Echo" & mm == 0, median_n_reads]` for Echo, `r mm_readers_by_modality_fig_df[modality == "PET" & mm == 1, median_n_reads]` vs. `r mm_readers_by_modality_fig_df[modality == "PET" & mm == 0, median_n_reads]` for PET, `r mm_readers_by_modality_fig_df[modality == "CTA" & mm == 1, median_n_reads]` vs. `r mm_readers_by_modality_fig_df[modality == "CTA" & mm == 0, median_n_reads]` for CTA, and `r mm_readers_by_modality_fig_df[modality == "MRI" & mm  == 1, median_n_reads]` vs. `r mm_readers_by_modality_fig_df[modality == "MRI" & mm == 0, median_n_reads]` for MRI). **Figure 6B** shows the volume of procedures for each modality stratified into advanced and non-advanced imagers. Advanced readers read a relatively similar number of SPECT (`r adv_readers_by_modality_fig_df[modality == "SPECT" & advanced== 1, median_n_reads]` vs. `r adv_readers_by_modality_fig_df[modality == "SPECT" & advanced == 0, median_n_reads]`) and CTA (`r adv_readers_by_modality_fig_df[modality == "CTA" & advanced== 1, median_n_reads]` vs. `r adv_readers_by_modality_fig_df[modality == "CTA" & advanced == 0, median_n_reads]`) studies, with higher volumes of Echo (`r adv_readers_by_modality_fig_df[modality == "Echo" & advanced== 1, median_n_reads]` vs. `r adv_readers_by_modality_fig_df[modality == "Echo" & advanced== 0, median_n_reads]`), PET (`r adv_readers_by_modality_fig_df[modality == "PET" & advanced == 1, median_n_reads]` vs. `r adv_readers_by_modality_fig_df[modality == "PET" & advanced == 0, median_n_reads]`), and MRI (`r adv_readers_by_modality_fig_df[modality == "MRI" & advanced == 1, median_n_reads]` vs. `r adv_readers_by_modality_fig_df[modality == "MRI" & advanced == 0, median_n_reads]`).
+
+**Figure Legends.**
+
+**Figure 1. Trends in the use (A, C) and readers (B, D) of cardiac imaging modalities, 2013-2022.**
+
+```{r, fig.width = 16, fig.height = 9}
+fig_pt
+fig_rt
+fig_pt_prop
+fig_rt_prop
+```
+
+**Figure 2. Trends in the number of modalities read by imagers (A), the number and proportion of advanced imagers reading SPECT or Echo and one of PET/CTA/MRI (B & C respectively), and the overlap in imagers between different modalities (D), 2013-2022.**
+
+```{r, fig.width = 16, fig.height = 9}
+fig_mmt_v1
+fig_advanced_n
+fig_advanced_prop
+fig_m_by_m
+```
+
+**Figure 3. Number (A), Proportion (B) and density per million inhabitants (C) of cardiac imagers who were advanced (reading SPECT or Echo + one of PET/CTA/MRI)** **in 2022.**
+
+```{r, fig.width = 16, fig.height = 9}
+fig_adv_n_map
+fig_adv_prop_map
+fig_adv_density_map
+```
+
+**Figure 4. Proportion of cardiac imagers (A) and advanced cardiac imagers (B) according to specialty, 2013-2022.**
+
+```{r, fig.width = 16, fig.height = 9}
+fig_cr_total
+fig_cr_adv
+```
+
+**Figure 5. Distribution of year of graduation (surrogate for age) across the 5 cardiac imaging modalities (A) and by number of modalities read (B) in 2022.** Points represent medians and lines extend to the 25^th^ and 75^th^ percentiles.
+
+```{r, fig.width = 16, fig.height = 9}
+fig_modalities_yog
+fig_n_modalities_yog
+```
+
+**Figure 6. Volume of procedures for multimodal vs unimodal imagers (A) and advanced vs non-advanced imagers (B).** Points represent medians and lines extend to the 25^th^ and 75^th^ percentiles.
+
+```{r, fig.width = 16, fig.height = 9}
+fig_mm_volume
+fig_adv_volume
+```
+
+**Supplementary Table:**
+
+**Supplementary Table 1. Current Procedural Terminology (CPT) codes used to identify different imaging modalities in the analysis.**
+
+```{r}
+library(flextable)
+codes_used
+save_as_docx(codes_used_table, path = "Supplementary Table 1.docx")
+```
+
+**Supplementary Figures:**
+
+**Supplementary Figure 1. Overall trends in the number of cardiac imaging procedures in the US, 2013 to 2022.**
+
+```{r, fig.width = 16, fig.height = 9}
+fig_pt_total
+```
+
+**Supplementary Figure 2. Trends in the number and proportion (A & B respectively) of advanced imagers reading Echo/SPECT/PET and one of CTA/MRI**
+
+```{r, fig.width = 16, fig.height = 9}
+fig_advanced_n_sens
+fig_advanced_prop_sens
+```
+
+**Supplementary Figure 3. Proportion of advanced cardiac imagers (Echo/SPECT/PET and one of CTA/MRI) according to specialty, 2013-2022.**
+
+```{r, fig.width = 16, fig.height = 9}
+fig_cr_adv_sens
+```
